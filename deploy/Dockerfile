@@ -1,40 +1,33 @@
-# Build Stage
+# syntax=docker/dockerfile:1
+
 FROM golang:1.24-alpine AS builder
 
-WORKDIR /app
+WORKDIR /src
 
-# Install build dependencies for CGO (sqlite3)
-RUN apk add --no-cache build-base
-
-# Copy go mod and sum files
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/aevon-server ./cmd/aevon
 
-# Build the binary
-RUN CGO_ENABLED=1 GOOS=linux go build -o aevon-server cmd/aevon/main.go
-
-# Final Stage
 FROM alpine:3.19
 
 WORKDIR /app
 
-# Install dependencies needing for CGO (sqlite) if utilizing it, 
-# though git-sync scenario might lean towards postgres in prod.
-# For consistency with current dev setup, we'll ensure sqlite libs are present if needed,
-# or just rely on the static build.
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates && \
+    adduser -D -H -u 10001 aevon && \
+    mkdir -p /app/config /app/config/aggregations /app/schemas && \
+    chown -R aevon:aevon /app
 
-# Copy binary from builder
-COPY --from=builder /app/aevon-server .
+COPY --from=builder /out/aevon-server /app/aevon-server
 
-# Create directory for schemas (will be mounted)
-RUN mkdir -p /app/schemas
+USER aevon
 
-# Expose port
 EXPOSE 8080
 
-# Run
-CMD ["./aevon-server"]
+# Runtime mounts:
+# - /app/config/aevon.yaml (server config file)
+# - /app/config/aggregations (aggregation rules directory)
+# - /app/schemas (schema files directory)
+ENTRYPOINT ["/app/aevon-server"]
+CMD ["-config", "/app/config/aevon.yaml"]
