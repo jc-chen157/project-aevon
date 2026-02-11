@@ -42,7 +42,6 @@ func (m *mockEventStore) RetrieveEventsAfterCursor(ctx context.Context, cursor i
 func (m *mockEventStore) RetrieveScopedEventsAfterCursor(
 	ctx context.Context,
 	cursor int64,
-	tenantID string,
 	principalID string,
 	eventType string,
 	startOccurredAt time.Time,
@@ -81,10 +80,10 @@ func (m *mockPreAggStore) LoadAggregates(ctx context.Context) (map[aggregation.A
 	return m.aggregates, nil
 }
 
-func (m *mockPreAggStore) QueryRange(ctx context.Context, tenantID string, principalID string, ruleName string, bucketSize string, startTime time.Time, endTime time.Time) ([]aggregation.AggregateState, error) {
+func (m *mockPreAggStore) QueryRange(ctx context.Context, principalID string, ruleName string, bucketSize string, startTime time.Time, endTime time.Time) ([]aggregation.AggregateState, error) {
 	var results []aggregation.AggregateState
 	for k, v := range m.aggregates {
-		if k.TenantID == tenantID && k.PrincipalID == principalID && k.RuleName == ruleName {
+		if k.PrincipalID == principalID && k.RuleName == ruleName {
 			if bucketSize != "" && k.BucketSize != "" && k.BucketSize != bucketSize {
 				continue
 			}
@@ -121,7 +120,6 @@ func TestBatchJob_CountAggregation(t *testing.T) {
 	events := []*v1.Event{
 		{
 			ID:          "evt-1",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now,
@@ -130,7 +128,6 @@ func TestBatchJob_CountAggregation(t *testing.T) {
 		},
 		{
 			ID:          "evt-2",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now,
@@ -139,7 +136,6 @@ func TestBatchJob_CountAggregation(t *testing.T) {
 		},
 		{
 			ID:          "evt-3",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now,
@@ -196,7 +192,6 @@ func TestBatchJob_SumAggregation(t *testing.T) {
 	events := []*v1.Event{
 		{
 			ID:          "evt-1",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now,
@@ -205,7 +200,6 @@ func TestBatchJob_SumAggregation(t *testing.T) {
 		},
 		{
 			ID:          "evt-2",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now,
@@ -255,7 +249,6 @@ func TestBatchJob_MultipleWindows(t *testing.T) {
 	events := []*v1.Event{
 		{
 			ID:          "evt-1",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now,
@@ -264,7 +257,6 @@ func TestBatchJob_MultipleWindows(t *testing.T) {
 		},
 		{
 			ID:          "evt-2",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now.Add(2 * time.Minute), // Different window
@@ -309,7 +301,6 @@ func TestBatchJob_Idempotency(t *testing.T) {
 	events := []*v1.Event{
 		{
 			ID:          "evt-1",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now,
@@ -364,7 +355,6 @@ func TestBatchJob_BucketScopedCheckpoint(t *testing.T) {
 	events := []*v1.Event{
 		{
 			ID:          "evt-1",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now,
@@ -373,7 +363,6 @@ func TestBatchJob_BucketScopedCheckpoint(t *testing.T) {
 		},
 		{
 			ID:          "evt-2",
-			TenantID:    "tenant-1",
 			PrincipalID: "user:alice",
 			Type:        "api.request",
 			OccurredAt:  now.Add(30 * time.Second),

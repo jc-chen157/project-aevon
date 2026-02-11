@@ -123,7 +123,7 @@ func validateSchema(db *sql.DB) error {
 }
 
 // SaveEvent persists an event to PostgreSQL and populates IngestSeq.
-// Uses composite key (tenant_id, principal_id, id) for idempotency.
+// Uses composite key (principal_id, id) for idempotency.
 // Returns storage.ErrDuplicate if an event with the same key already exists.
 // IMPORTANT: Populates event.IngestSeq from database for cursor tracking.
 func (a *Adapter) SaveEvent(ctx context.Context, event *v1.Event) error {
@@ -136,7 +136,6 @@ func (a *Adapter) SaveEvent(ctx context.Context, event *v1.Event) error {
 	var ingestSeq int64
 	err = a.stmtSaveEvent.QueryRowContext(ctx,
 		event.ID,
-		event.TenantID,
 		event.PrincipalID,
 		event.Type,
 		event.SchemaVersion,
@@ -158,7 +157,6 @@ func (a *Adapter) SaveEvent(ctx context.Context, event *v1.Event) error {
 	event.IngestSeq = ingestSeq
 
 	slog.Debug("[Postgres] Saved event",
-		"tenant_id", event.TenantID,
 		"principal_id", event.PrincipalID,
 		"event_id", event.ID,
 		"ingest_seq", ingestSeq)
@@ -173,8 +171,8 @@ func (a *Adapter) SaveEvent(ctx context.Context, event *v1.Event) error {
 //   - afterTime: Fetch events with ingested_at > afterTime
 //   - limit: Maximum number of events to return
 //
-// Note: Fetches events for ALL tenants and principals.
-// Multi-tenancy/principal filtering is handled at the aggregation rule level.
+// Note: Fetches events for ALL principals.
+// Principal filtering is handled at the aggregation rule level.
 func (a *Adapter) RetrieveEventsAfter(ctx context.Context, afterTime time.Time, limit int) ([]*v1.Event, error) {
 	rows, err := a.stmtRetrieveEvents.QueryContext(ctx, afterTime, limit)
 	if err != nil {
@@ -206,7 +204,7 @@ func (a *Adapter) RetrieveEventsAfter(ctx context.Context, afterTime time.Time, 
 //   - cursor: Last ingest_seq processed (fetch events with ingest_seq > cursor)
 //   - limit: Maximum number of events to return
 //
-// Note: Fetches events for ALL tenants and principals.
+// Note: Fetches events for ALL principals.
 // cursor=0 means "from the beginning"
 func (a *Adapter) RetrieveEventsAfterCursor(ctx context.Context, cursor int64, limit int) ([]*v1.Event, error) {
 	rows, err := a.stmtRetrieveEventsCursor.QueryContext(ctx, cursor, limit)
@@ -235,7 +233,6 @@ func (a *Adapter) RetrieveEventsAfterCursor(ctx context.Context, cursor int64, l
 func (a *Adapter) RetrieveScopedEventsAfterCursor(
 	ctx context.Context,
 	cursor int64,
-	tenantID string,
 	principalID string,
 	eventType string,
 	startOccurredAt time.Time,
@@ -245,7 +242,6 @@ func (a *Adapter) RetrieveScopedEventsAfterCursor(
 	rows, err := a.stmtRetrieveScopedCursor.QueryContext(
 		ctx,
 		cursor,
-		tenantID,
 		principalID,
 		eventType,
 		startOccurredAt,

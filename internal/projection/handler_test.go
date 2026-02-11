@@ -57,7 +57,7 @@ func TestService_HandleQueryAggregates_StatusMapping(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 			configurePreAgg: func(preAggStore *aggregationmocks.PreAggregateStore) {
 				preAggStore.EXPECT().
-					QueryRange(mock.Anything, "tenant-1", "user-1", "count_requests", "1m", start, end).
+					QueryRange(mock.Anything, "user-1", "count_requests", "1m", start, end).
 					Return([]coreagg.AggregateState(nil), fmt.Errorf("db failure")).
 					Once()
 			},
@@ -73,7 +73,7 @@ func TestService_HandleQueryAggregates_StatusMapping(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 			configurePreAgg: func(preAggStore *aggregationmocks.PreAggregateStore) {
 				preAggStore.EXPECT().
-					QueryRange(mock.Anything, "tenant-1", "user-1", "count_requests", "1m", start, end).
+					QueryRange(mock.Anything, "user-1", "count_requests", "1m", start, end).
 					Return([]coreagg.AggregateState{{
 						Operator:        coreagg.OpCount,
 						Value:           decimal.NewFromInt(1),
@@ -88,7 +88,7 @@ func TestService_HandleQueryAggregates_StatusMapping(t *testing.T) {
 			},
 			configureEvent: func(eventStore *storagemocks.EventStore) {
 				eventStore.EXPECT().
-					RetrieveScopedEventsAfterCursor(mock.Anything, int64(42), "tenant-1", "user-1", "api.request", start, end, rawQueryBatchSize).
+					RetrieveScopedEventsAfterCursor(mock.Anything, int64(42), "user-1", "api.request", start, end, rawQueryBatchSize).
 					Return(nil, fmt.Errorf("event store failure")).
 					Once()
 			},
@@ -106,7 +106,7 @@ func TestService_HandleQueryAggregates_StatusMapping(t *testing.T) {
 			r := gin.New()
 			svc.RegisterRoutes(r)
 
-			url := "/v1/state/tenant-1/user-1?" + tc.query
+			url := "/v1/state/user-1?" + tc.query
 			req := httptest.NewRequest(http.MethodGet, url, nil)
 			resp := httptest.NewRecorder()
 			r.ServeHTTP(resp, req)

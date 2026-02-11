@@ -172,7 +172,6 @@ func RunBatchAggregationWithOptionsReturningCount(
 }
 
 type eventGroupKey struct {
-	TenantID    string
 	PrincipalID string
 }
 
@@ -201,7 +200,7 @@ func buildAggregatesConcurrently(
 ) map[aggregation.AggregateKey]aggregation.AggregateState {
 	groups := make(map[eventGroupKey][]*v1.Event)
 	for _, evt := range events {
-		key := eventGroupKey{TenantID: evt.TenantID, PrincipalID: evt.PrincipalID}
+		key := eventGroupKey{PrincipalID: evt.PrincipalID}
 		groups[key] = append(groups[key], evt)
 	}
 
@@ -270,8 +269,7 @@ func mergeGroupAggregates(
 		for _, cr := range rulesForEvent {
 			windowStart := aggregation.BucketFor(evt.OccurredAt, opts.BucketSize)
 			key := aggregation.AggregateKey{
-				PartitionID: partition.For(evt.TenantID),
-				TenantID:    evt.TenantID,
+				PartitionID: partition.For(evt.PrincipalID),
 				PrincipalID: evt.PrincipalID,
 				RuleName:    cr.rule.Name,
 				BucketSize:  opts.BucketLabel,

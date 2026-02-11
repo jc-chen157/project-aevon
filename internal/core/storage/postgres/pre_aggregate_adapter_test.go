@@ -8,7 +8,6 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/aevon-lab/project-aevon/internal/core/aggregation"
-	"github.com/aevon-lab/project-aevon/internal/core/partition"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +43,6 @@ func TestPreAggregateAdapter_FlushIncludesBucketSize(t *testing.T) {
 
 	key := aggregation.AggregateKey{
 		PartitionID: 0,
-		TenantID:    "tenant-1",
 		PrincipalID: "user-1",
 		RuleName:    "count_requests",
 		BucketSize:  "1m",
@@ -70,10 +68,10 @@ func TestPreAggregateAdapter_FlushIncludesBucketSize(t *testing.T) {
 
 	mock.ExpectPrepare(regexp.QuoteMeta(`
 		INSERT INTO pre_aggregates (
-			partition_id, tenant_id, principal_id, rule_name, rule_fingerprint,
+			partition_id, principal_id, rule_name, rule_fingerprint,
 			bucket_size, window_start, operator, value, event_count, last_event_id, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		ON CONFLICT (partition_id, tenant_id, principal_id, rule_name, bucket_size, window_start)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		ON CONFLICT (partition_id, principal_id, rule_name, bucket_size, window_start)
 		DO UPDATE SET
 			value = CASE EXCLUDED.operator
 				WHEN 'count' THEN pre_aggregates.value + EXCLUDED.value
@@ -88,7 +86,6 @@ func TestPreAggregateAdapter_FlushIncludesBucketSize(t *testing.T) {
 			updated_at       = EXCLUDED.updated_at
 	`)).ExpectExec().WithArgs(
 		key.PartitionID,
-		key.TenantID,
 		key.PrincipalID,
 		key.RuleName,
 		state.RuleFingerprint,
@@ -123,7 +120,6 @@ func TestPreAggregateAdapter_FlushRejectsMixedBucketSizes(t *testing.T) {
 
 	key := aggregation.AggregateKey{
 		PartitionID: 0,
-		TenantID:    "tenant-1",
 		PrincipalID: "user-1",
 		RuleName:    "count_requests",
 		BucketSize:  "10m",
@@ -166,7 +162,6 @@ func TestPreAggregateAdapter_QueryRangeUsesPartitionAndBucket(t *testing.T) {
 
 	start := time.Date(2026, 2, 7, 10, 0, 0, 0, time.UTC)
 	end := start.Add(2 * time.Hour)
-	tenantID := "tenant-1"
 	principalID := "user-1"
 	ruleName := "count_requests"
 
@@ -191,16 +186,14 @@ func TestPreAggregateAdapter_QueryRangeUsesPartitionAndBucket(t *testing.T) {
 			updated_at
 		FROM pre_aggregates
 		WHERE partition_id = $1
-		  AND tenant_id = $2
-		  AND principal_id = $3
-		  AND rule_name = $4
-		  AND bucket_size = $5
-		  AND window_start >= $6
-		  AND window_start < $7
+		  AND principal_id = $2
+		  AND rule_name = $3
+		  AND bucket_size = $4
+		  AND window_start >= $5
+		  AND window_start < $6
 		ORDER BY window_start ASC
 	`)).WithArgs(
-		partition.For(tenantID),
-		tenantID,
+		0, // Fixed partition_id for single-tenant
 		principalID,
 		ruleName,
 		"1m",
@@ -208,7 +201,7 @@ func TestPreAggregateAdapter_QueryRangeUsesPartitionAndBucket(t *testing.T) {
 		end,
 	).WillReturnRows(rows)
 
-	result, err := adapter.QueryRange(context.Background(), tenantID, principalID, ruleName, "1m", start, end)
+	result, err := adapter.QueryRange(context.Background(), principalID, ruleName, "1m", start, end)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, "3", result[0].Value.String())
@@ -225,7 +218,6 @@ func TestPreAggregateAdapter_QueryRangeDefaultsBucketSize(t *testing.T) {
 
 	start := time.Date(2026, 2, 7, 10, 0, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
-	tenantID := "tenant-1"
 	principalID := "user-1"
 	ruleName := "count_requests"
 
@@ -240,16 +232,14 @@ func TestPreAggregateAdapter_QueryRangeDefaultsBucketSize(t *testing.T) {
 			updated_at
 		FROM pre_aggregates
 		WHERE partition_id = $1
-		  AND tenant_id = $2
-		  AND principal_id = $3
-		  AND rule_name = $4
-		  AND bucket_size = $5
-		  AND window_start >= $6
-		  AND window_start < $7
+		  AND principal_id = $2
+		  AND rule_name = $3
+		  AND bucket_size = $4
+		  AND window_start >= $5
+		  AND window_start < $6
 		ORDER BY window_start ASC
 	`)).WithArgs(
-		partition.For(tenantID),
-		tenantID,
+		0, // Fixed partition_id for single-tenant
 		principalID,
 		ruleName,
 		"1m",
@@ -265,7 +255,7 @@ func TestPreAggregateAdapter_QueryRangeDefaultsBucketSize(t *testing.T) {
 		"updated_at",
 	}))
 
-	result, err := adapter.QueryRange(context.Background(), tenantID, principalID, ruleName, "", start, end)
+	result, err := adapter.QueryRange(context.Background(), principalID, ruleName, "", start, end)
 	require.NoError(t, err)
 	require.Empty(t, result)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -280,13 +270,11 @@ func TestPreAggregateAdapter_QueryRangeWithCheckpoint(t *testing.T) {
 
 	start := time.Date(2026, 2, 7, 10, 0, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
-	tenantID := "tenant-1"
 	principalID := "user-1"
 	ruleName := "sum_bytes"
 
 	mock.ExpectQuery("WITH checkpoint AS").WithArgs(
-		partition.For(tenantID),
-		tenantID,
+		0, // Fixed partition_id for single-tenant
 		principalID,
 		ruleName,
 		"10m",
@@ -314,7 +302,6 @@ func TestPreAggregateAdapter_QueryRangeWithCheckpoint(t *testing.T) {
 
 	result, checkpoint, err := adapter.QueryRangeWithCheckpoint(
 		context.Background(),
-		tenantID,
 		principalID,
 		ruleName,
 		"10m",
@@ -338,13 +325,11 @@ func TestPreAggregateAdapter_QueryRangeWithCheckpoint_EmptyRange(t *testing.T) {
 
 	start := time.Date(2026, 2, 7, 10, 0, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
-	tenantID := "tenant-1"
 	principalID := "user-1"
 	ruleName := "count_requests"
 
 	mock.ExpectQuery("WITH checkpoint AS").WithArgs(
-		partition.For(tenantID),
-		tenantID,
+		0, // Fixed partition_id for single-tenant
 		principalID,
 		ruleName,
 		"1m",
@@ -372,7 +357,6 @@ func TestPreAggregateAdapter_QueryRangeWithCheckpoint_EmptyRange(t *testing.T) {
 
 	result, checkpoint, err := adapter.QueryRangeWithCheckpoint(
 		context.Background(),
-		tenantID,
 		principalID,
 		ruleName,
 		"1m",

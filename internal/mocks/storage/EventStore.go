@@ -145,9 +145,9 @@ func (_c *EventStore_RetrieveEventsAfterCursor_Call) RunAndReturn(run func(conte
 	return _c
 }
 
-// RetrieveScopedEventsAfterCursor provides a mock function with given fields: ctx, cursor, tenantID, principalID, eventType, startOccurredAt, endOccurredAt, limit
-func (_m *EventStore) RetrieveScopedEventsAfterCursor(ctx context.Context, cursor int64, tenantID string, principalID string, eventType string, startOccurredAt time.Time, endOccurredAt time.Time, limit int) ([]*v1.Event, error) {
-	ret := _m.Called(ctx, cursor, tenantID, principalID, eventType, startOccurredAt, endOccurredAt, limit)
+// RetrieveScopedEventsAfterCursor provides a mock function with given fields: ctx, cursor, principalID, eventType, startOccurredAt, endOccurredAt, limit
+func (_m *EventStore) RetrieveScopedEventsAfterCursor(ctx context.Context, cursor int64, principalID string, eventType string, startOccurredAt time.Time, endOccurredAt time.Time, limit int) ([]*v1.Event, error) {
+	ret := _m.Called(ctx, cursor, principalID, eventType, startOccurredAt, endOccurredAt, limit)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RetrieveScopedEventsAfterCursor")
@@ -155,19 +155,19 @@ func (_m *EventStore) RetrieveScopedEventsAfterCursor(ctx context.Context, curso
 
 	var r0 []*v1.Event
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, string, string, string, time.Time, time.Time, int) ([]*v1.Event, error)); ok {
-		return rf(ctx, cursor, tenantID, principalID, eventType, startOccurredAt, endOccurredAt, limit)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string, string, time.Time, time.Time, int) ([]*v1.Event, error)); ok {
+		return rf(ctx, cursor, principalID, eventType, startOccurredAt, endOccurredAt, limit)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64, string, string, string, time.Time, time.Time, int) []*v1.Event); ok {
-		r0 = rf(ctx, cursor, tenantID, principalID, eventType, startOccurredAt, endOccurredAt, limit)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, string, string, time.Time, time.Time, int) []*v1.Event); ok {
+		r0 = rf(ctx, cursor, principalID, eventType, startOccurredAt, endOccurredAt, limit)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*v1.Event)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, int64, string, string, string, time.Time, time.Time, int) error); ok {
-		r1 = rf(ctx, cursor, tenantID, principalID, eventType, startOccurredAt, endOccurredAt, limit)
+	if rf, ok := ret.Get(1).(func(context.Context, int64, string, string, time.Time, time.Time, int) error); ok {
+		r1 = rf(ctx, cursor, principalID, eventType, startOccurredAt, endOccurredAt, limit)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -183,19 +183,18 @@ type EventStore_RetrieveScopedEventsAfterCursor_Call struct {
 // RetrieveScopedEventsAfterCursor is a helper method to define mock.On call
 //   - ctx context.Context
 //   - cursor int64
-//   - tenantID string
 //   - principalID string
 //   - eventType string
 //   - startOccurredAt time.Time
 //   - endOccurredAt time.Time
 //   - limit int
-func (_e *EventStore_Expecter) RetrieveScopedEventsAfterCursor(ctx interface{}, cursor interface{}, tenantID interface{}, principalID interface{}, eventType interface{}, startOccurredAt interface{}, endOccurredAt interface{}, limit interface{}) *EventStore_RetrieveScopedEventsAfterCursor_Call {
-	return &EventStore_RetrieveScopedEventsAfterCursor_Call{Call: _e.mock.On("RetrieveScopedEventsAfterCursor", ctx, cursor, tenantID, principalID, eventType, startOccurredAt, endOccurredAt, limit)}
+func (_e *EventStore_Expecter) RetrieveScopedEventsAfterCursor(ctx interface{}, cursor interface{}, principalID interface{}, eventType interface{}, startOccurredAt interface{}, endOccurredAt interface{}, limit interface{}) *EventStore_RetrieveScopedEventsAfterCursor_Call {
+	return &EventStore_RetrieveScopedEventsAfterCursor_Call{Call: _e.mock.On("RetrieveScopedEventsAfterCursor", ctx, cursor, principalID, eventType, startOccurredAt, endOccurredAt, limit)}
 }
 
-func (_c *EventStore_RetrieveScopedEventsAfterCursor_Call) Run(run func(ctx context.Context, cursor int64, tenantID string, principalID string, eventType string, startOccurredAt time.Time, endOccurredAt time.Time, limit int)) *EventStore_RetrieveScopedEventsAfterCursor_Call {
+func (_c *EventStore_RetrieveScopedEventsAfterCursor_Call) Run(run func(ctx context.Context, cursor int64, principalID string, eventType string, startOccurredAt time.Time, endOccurredAt time.Time, limit int)) *EventStore_RetrieveScopedEventsAfterCursor_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(int64), args[2].(string), args[3].(string), args[4].(string), args[5].(time.Time), args[6].(time.Time), args[7].(int))
+		run(args[0].(context.Context), args[1].(int64), args[2].(string), args[3].(string), args[4].(time.Time), args[5].(time.Time), args[6].(int))
 	})
 	return _c
 }
@@ -205,7 +204,7 @@ func (_c *EventStore_RetrieveScopedEventsAfterCursor_Call) Return(_a0 []*v1.Even
 	return _c
 }
 
-func (_c *EventStore_RetrieveScopedEventsAfterCursor_Call) RunAndReturn(run func(context.Context, int64, string, string, string, time.Time, time.Time, int) ([]*v1.Event, error)) *EventStore_RetrieveScopedEventsAfterCursor_Call {
+func (_c *EventStore_RetrieveScopedEventsAfterCursor_Call) RunAndReturn(run func(context.Context, int64, string, string, time.Time, time.Time, int) ([]*v1.Event, error)) *EventStore_RetrieveScopedEventsAfterCursor_Call {
 	_c.Call.Return(run)
 	return _c
 }

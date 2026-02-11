@@ -8,7 +8,6 @@ import (
 
 // AggregateQueryRequest represents the query parameters for fetching aggregates.
 type AggregateQueryRequest struct {
-	TenantID    string    `uri:"tenant_id" binding:"required"`
 	PrincipalID string    `uri:"principal_id" binding:"required"`
 	Rule        string    `form:"rule" binding:"required"`
 	Start       time.Time `form:"start" binding:"required" time_format:"2006-01-02T15:04:05Z07:00"`
@@ -26,7 +25,6 @@ type AggregateValue struct {
 
 // AggregateQueryResponse represents the response for an aggregate query.
 type AggregateQueryResponse struct {
-	TenantID         string           `json:"tenant_id"`
 	PrincipalID      string           `json:"principal_id"`
 	Rule             string           `json:"rule"`
 	Operator         string           `json:"operator"`

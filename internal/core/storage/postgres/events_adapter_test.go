@@ -29,7 +29,6 @@ func TestAdapter_SaveEvent(t *testing.T) {
 			name: "success sets ingest seq",
 			event: &v1.Event{
 				ID:            "evt-1",
-				TenantID:      "tenant-1",
 				PrincipalID:   "user-1",
 				Type:          "api.request",
 				SchemaVersion: 1,
@@ -42,7 +41,6 @@ func TestAdapter_SaveEvent(t *testing.T) {
 				mock.ExpectQuery(regexp.QuoteMeta(querySaveEvent)).
 					WithArgs(
 						event.ID,
-						event.TenantID,
 						event.PrincipalID,
 						event.Type,
 						event.SchemaVersion,
@@ -63,7 +61,6 @@ func TestAdapter_SaveEvent(t *testing.T) {
 			name: "duplicate maps to ErrDuplicate",
 			event: &v1.Event{
 				ID:            "evt-dup",
-				TenantID:      "tenant-1",
 				PrincipalID:   "user-1",
 				Type:          "api.request",
 				SchemaVersion: 1,
@@ -75,7 +72,6 @@ func TestAdapter_SaveEvent(t *testing.T) {
 				mock.ExpectQuery(regexp.QuoteMeta(querySaveEvent)).
 					WithArgs(
 						event.ID,
-						event.TenantID,
 						event.PrincipalID,
 						event.Type,
 						event.SchemaVersion,
@@ -96,7 +92,6 @@ func TestAdapter_SaveEvent(t *testing.T) {
 			name: "marshal error short-circuits",
 			event: &v1.Event{
 				ID:            "evt-bad",
-				TenantID:      "tenant-1",
 				PrincipalID:   "user-1",
 				Type:          "api.request",
 				SchemaVersion: 1,
@@ -143,7 +138,6 @@ func TestAdapter_RetrieveEventsAfterCursor(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows(eventRowColumns()).
 			AddRow(
 				"evt-101",
-				"tenant-1",
 				"user-1",
 				"api.request",
 				1,
@@ -155,7 +149,6 @@ func TestAdapter_RetrieveEventsAfterCursor(t *testing.T) {
 			).
 			AddRow(
 				"evt-102",
-				"tenant-1",
 				"user-1",
 				"api.request",
 				1,
@@ -189,11 +182,10 @@ func TestAdapter_RetrieveScopedEventsAfterCursor(t *testing.T) {
 	end := start.Add(time.Hour)
 
 	mock.ExpectQuery(regexp.QuoteMeta(queryRetrieveScopedEventsAfterCursor)).
-		WithArgs(int64(42), "tenant-1", "user-1", "api.request", start, end, 5000).
+		WithArgs(int64(42), "user-1", "api.request", start, end, 5000).
 		WillReturnRows(sqlmock.NewRows(eventRowColumns()).
 			AddRow(
 				"evt-43",
-				"tenant-1",
 				"user-1",
 				"api.request",
 				1,
@@ -208,7 +200,6 @@ func TestAdapter_RetrieveScopedEventsAfterCursor(t *testing.T) {
 	events, err := adapter.RetrieveScopedEventsAfterCursor(
 		context.Background(),
 		42,
-		"tenant-1",
 		"user-1",
 		"api.request",
 		start,
@@ -293,7 +284,6 @@ func mustPrepareStmt(t *testing.T, db *sql.DB, mock sqlmock.Sqlmock, query strin
 func eventRowColumns() []string {
 	return []string{
 		"id",
-		"tenant_id",
 		"principal_id",
 		"type",
 		"schema_version",

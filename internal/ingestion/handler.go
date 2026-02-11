@@ -52,7 +52,6 @@ func (s *Service) IngestHandler(c *gin.Context) {
 
 	slog.Info("Received Event",
 		"event_id", evt.ID,
-		"tenant_id", evt.TenantID,
 		"principal_id", evt.PrincipalID,
 		"event_type", evt.Type,
 		"schema_version", evt.SchemaVersion,
@@ -118,7 +117,7 @@ func (s *Service) parseEvent(c *gin.Context) (*v1.Event, int, *ingestionError) {
 // and the event declares a SchemaVersion. Returns nil on success.
 func (s *Service) validateEvent(ctx context.Context, evt *v1.Event) *ingestionError {
 	if err := evt.Validate(); err != nil {
-		slog.Warn("Envelope validation failed", "error", err, "event_id", evt.ID, "tenant_id", evt.TenantID)
+		slog.Warn("Envelope validation failed", "error", err, "event_id", evt.ID)
 		return &ingestionError{
 			statusCode: http.StatusBadRequest,
 			errorType:  httperr.HttpInvalidJsonError,
@@ -130,7 +129,8 @@ func (s *Service) validateEvent(ctx context.Context, evt *v1.Event) *ingestionEr
 		return nil
 	}
 
-	sch, err := s.registry.Get(ctx, evt.TenantID, evt.Type, evt.SchemaVersion)
+	// Use "default" as tenant_id for schema registry (can be updated later)
+	sch, err := s.registry.Get(ctx, "default", evt.Type, evt.SchemaVersion)
 	if err != nil {
 		slog.Warn("Schema not found for event", "event_type", evt.Type, "schema_version", evt.SchemaVersion, "error", err)
 		return &ingestionError{
@@ -172,7 +172,7 @@ func (s *Service) validateEvent(ctx context.Context, evt *v1.Event) *ingestionEr
 func (s *Service) persistEvent(ctx context.Context, evt *v1.Event) *ingestionError {
 	if err := s.store.SaveEvent(ctx, evt); err != nil {
 		if errors.Is(err, storage.ErrDuplicate) {
-			slog.Info("Duplicate event rejected", "event_id", evt.ID, "tenant_id", evt.TenantID, "principal_id", evt.PrincipalID)
+			slog.Info("Duplicate event rejected", "event_id", evt.ID, "principal_id", evt.PrincipalID)
 			return &ingestionError{
 				statusCode: http.StatusConflict,
 				errorType:  httperr.HttpDuplicateEventError,

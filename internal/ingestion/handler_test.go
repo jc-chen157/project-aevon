@@ -26,7 +26,6 @@ func TestIngestHandler_Success(t *testing.T) {
 	// Prepare test event
 	evt := &v1.Event{
 		ID:            "evt-001",
-		TenantID:      "tenant-1",
 		PrincipalID:   "user-1",
 		Type:          "api.request",
 		SchemaVersion: 0, // Skip schema validation
@@ -40,7 +39,7 @@ func TestIngestHandler_Success(t *testing.T) {
 	mockStore := storagemocks.NewEventStore(t)
 	mockStore.EXPECT().
 		SaveEvent(mock.Anything, mock.MatchedBy(func(e *v1.Event) bool {
-			return e.ID == "evt-001" && e.TenantID == "tenant-1"
+			return e.ID == "evt-001"
 		})).
 		Return(nil).
 		Once()
@@ -96,8 +95,7 @@ func TestIngestHandler_ValidationFailure(t *testing.T) {
 
 	// Event missing required fields
 	evt := &v1.Event{
-		ID:       "evt-001",
-		TenantID: "tenant-1",
+		ID: "evt-001",
 		// Missing PrincipalID
 		Type:       "api.request",
 		OccurredAt: time.Now().UTC(),
@@ -131,7 +129,6 @@ func TestIngestHandler_DuplicateEvent(t *testing.T) {
 
 	evt := &v1.Event{
 		ID:            "evt-001",
-		TenantID:      "tenant-1",
 		PrincipalID:   "user-1",
 		Type:          "api.request",
 		SchemaVersion: 0,
@@ -172,7 +169,6 @@ func TestIngestHandler_StorageError(t *testing.T) {
 
 	evt := &v1.Event{
 		ID:            "evt-001",
-		TenantID:      "tenant-1",
 		PrincipalID:   "user-1",
 		Type:          "api.request",
 		SchemaVersion: 0,
@@ -213,7 +209,6 @@ func TestIngestHandler_SchemaNotFound(t *testing.T) {
 
 	evt := &v1.Event{
 		ID:            "evt-001",
-		TenantID:      "tenant-1",
 		PrincipalID:   "user-1",
 		Type:          "api.request",
 		SchemaVersion: 999, // Non-existent schema version

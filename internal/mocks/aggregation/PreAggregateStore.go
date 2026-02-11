@@ -132,9 +132,9 @@ func (_c *PreAggregateStore_LoadAggregates_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
-// QueryRange provides a mock function with given fields: ctx, tenantID, principalID, ruleName, bucketSize, startTime, endTime
-func (_m *PreAggregateStore) QueryRange(ctx context.Context, tenantID string, principalID string, ruleName string, bucketSize string, startTime time.Time, endTime time.Time) ([]aggregation.AggregateState, error) {
-	ret := _m.Called(ctx, tenantID, principalID, ruleName, bucketSize, startTime, endTime)
+// QueryRange provides a mock function with given fields: ctx, principalID, ruleName, bucketSize, startTime, endTime
+func (_m *PreAggregateStore) QueryRange(ctx context.Context, principalID string, ruleName string, bucketSize string, startTime time.Time, endTime time.Time) ([]aggregation.AggregateState, error) {
+	ret := _m.Called(ctx, principalID, ruleName, bucketSize, startTime, endTime)
 
 	if len(ret) == 0 {
 		panic("no return value specified for QueryRange")
@@ -142,19 +142,19 @@ func (_m *PreAggregateStore) QueryRange(ctx context.Context, tenantID string, pr
 
 	var r0 []aggregation.AggregateState
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, time.Time, time.Time) ([]aggregation.AggregateState, error)); ok {
-		return rf(ctx, tenantID, principalID, ruleName, bucketSize, startTime, endTime)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, time.Time, time.Time) ([]aggregation.AggregateState, error)); ok {
+		return rf(ctx, principalID, ruleName, bucketSize, startTime, endTime)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, time.Time, time.Time) []aggregation.AggregateState); ok {
-		r0 = rf(ctx, tenantID, principalID, ruleName, bucketSize, startTime, endTime)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, time.Time, time.Time) []aggregation.AggregateState); ok {
+		r0 = rf(ctx, principalID, ruleName, bucketSize, startTime, endTime)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]aggregation.AggregateState)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string, time.Time, time.Time) error); ok {
-		r1 = rf(ctx, tenantID, principalID, ruleName, bucketSize, startTime, endTime)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, time.Time, time.Time) error); ok {
+		r1 = rf(ctx, principalID, ruleName, bucketSize, startTime, endTime)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -169,19 +169,18 @@ type PreAggregateStore_QueryRange_Call struct {
 
 // QueryRange is a helper method to define mock.On call
 //   - ctx context.Context
-//   - tenantID string
 //   - principalID string
 //   - ruleName string
 //   - bucketSize string
 //   - startTime time.Time
 //   - endTime time.Time
-func (_e *PreAggregateStore_Expecter) QueryRange(ctx interface{}, tenantID interface{}, principalID interface{}, ruleName interface{}, bucketSize interface{}, startTime interface{}, endTime interface{}) *PreAggregateStore_QueryRange_Call {
-	return &PreAggregateStore_QueryRange_Call{Call: _e.mock.On("QueryRange", ctx, tenantID, principalID, ruleName, bucketSize, startTime, endTime)}
+func (_e *PreAggregateStore_Expecter) QueryRange(ctx interface{}, principalID interface{}, ruleName interface{}, bucketSize interface{}, startTime interface{}, endTime interface{}) *PreAggregateStore_QueryRange_Call {
+	return &PreAggregateStore_QueryRange_Call{Call: _e.mock.On("QueryRange", ctx, principalID, ruleName, bucketSize, startTime, endTime)}
 }
 
-func (_c *PreAggregateStore_QueryRange_Call) Run(run func(ctx context.Context, tenantID string, principalID string, ruleName string, bucketSize string, startTime time.Time, endTime time.Time)) *PreAggregateStore_QueryRange_Call {
+func (_c *PreAggregateStore_QueryRange_Call) Run(run func(ctx context.Context, principalID string, ruleName string, bucketSize string, startTime time.Time, endTime time.Time)) *PreAggregateStore_QueryRange_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string), args[5].(time.Time), args[6].(time.Time))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(time.Time), args[5].(time.Time))
 	})
 	return _c
 }
@@ -191,7 +190,7 @@ func (_c *PreAggregateStore_QueryRange_Call) Return(_a0 []aggregation.AggregateS
 	return _c
 }
 
-func (_c *PreAggregateStore_QueryRange_Call) RunAndReturn(run func(context.Context, string, string, string, string, time.Time, time.Time) ([]aggregation.AggregateState, error)) *PreAggregateStore_QueryRange_Call {
+func (_c *PreAggregateStore_QueryRange_Call) RunAndReturn(run func(context.Context, string, string, string, time.Time, time.Time) ([]aggregation.AggregateState, error)) *PreAggregateStore_QueryRange_Call {
 	_c.Call.Return(run)
 	return _c
 }

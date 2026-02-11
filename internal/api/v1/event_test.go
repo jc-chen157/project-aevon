@@ -19,7 +19,6 @@ func TestEvent_Validation(t *testing.T) {
 			name: "valid event with all fields",
 			event: Event{
 				ID:          "evt_123",
-				TenantID:    "tenant_abc",
 				PrincipalID: "user:alice@example.com",
 				Type:        "test.event",
 				OccurredAt:  now,
@@ -27,40 +26,8 @@ func TestEvent_Validation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "valid event - tenant_id defaults to 'default'",
-			event: Event{
-				ID:          "evt_123",
-				PrincipalID: "user:bob@example.com",
-				Type:        "test.event",
-				OccurredAt:  now,
-			},
-			wantErr: false,
-			checkFn: func(t *testing.T, e *Event) {
-				if e.TenantID != "default" {
-					t.Errorf("TenantID should default to 'default', got %q", e.TenantID)
-				}
-			},
-		},
-		{
-			name: "valid event - explicit tenant_id preserved",
-			event: Event{
-				ID:          "evt_456",
-				TenantID:    "customer-acme",
-				PrincipalID: "account:prod-123",
-				Type:        "test.event",
-				OccurredAt:  now,
-			},
-			wantErr: false,
-			checkFn: func(t *testing.T, e *Event) {
-				if e.TenantID != "customer-acme" {
-					t.Errorf("TenantID should be preserved, got %q", e.TenantID)
-				}
-			},
-		},
-		{
 			name: "missing id",
 			event: Event{
-				TenantID:    "tenant_abc",
 				PrincipalID: "user:alice",
 				Type:        "test.event",
 				OccurredAt:  now,
@@ -71,7 +38,6 @@ func TestEvent_Validation(t *testing.T) {
 			name: "missing principal_id",
 			event: Event{
 				ID:         "evt_123",
-				TenantID:   "tenant_abc",
 				Type:       "test.event",
 				OccurredAt: now,
 			},
@@ -81,7 +47,6 @@ func TestEvent_Validation(t *testing.T) {
 			name: "missing type",
 			event: Event{
 				ID:          "evt_123",
-				TenantID:    "tenant_abc",
 				PrincipalID: "user:alice",
 				OccurredAt:  now,
 			},
@@ -91,7 +56,6 @@ func TestEvent_Validation(t *testing.T) {
 			name: "missing occurred_at",
 			event: Event{
 				ID:          "evt_123",
-				TenantID:    "tenant_abc",
 				PrincipalID: "user:alice",
 				Type:        "test.event",
 			},
@@ -133,29 +97,10 @@ func TestEvent_PrincipalIDRequired(t *testing.T) {
 	}
 }
 
-func TestEvent_TenantIDDefaults(t *testing.T) {
-	evt := Event{
-		ID:          "evt_123",
-		PrincipalID: "user:alice",
-		Type:        "test.event",
-		OccurredAt:  time.Now(),
-		// TenantID omitted
-	}
-
-	if err := evt.Validate(); err != nil {
-		t.Fatalf("Validation should succeed with default tenant_id: %v", err)
-	}
-
-	if evt.TenantID != "default" {
-		t.Errorf("TenantID should default to 'default', got %q", evt.TenantID)
-	}
-}
-
 func TestEvent_JSONMarshaling(t *testing.T) {
 	now, _ := time.Parse(time.RFC3339, "2024-01-01T12:00:00Z")
 	evt := Event{
 		ID:          "evt_123",
-		TenantID:    "tenant_abc",
 		PrincipalID: "user:alice@example.com",
 		Type:        "api.request",
 		OccurredAt:  now,
@@ -179,9 +124,6 @@ func TestEvent_JSONMarshaling(t *testing.T) {
 	if unmarshaled.ID != evt.ID {
 		t.Errorf("ID mismatch: got %v, want %v", unmarshaled.ID, evt.ID)
 	}
-	if unmarshaled.TenantID != evt.TenantID {
-		t.Errorf("TenantID mismatch: got %v, want %v", unmarshaled.TenantID, evt.TenantID)
-	}
 	if unmarshaled.PrincipalID != evt.PrincipalID {
 		t.Errorf("PrincipalID mismatch: got %v, want %v", unmarshaled.PrincipalID, evt.PrincipalID)
 	}
@@ -190,34 +132,6 @@ func TestEvent_JSONMarshaling(t *testing.T) {
 	}
 	if path, ok := unmarshaled.Data["path"].(string); !ok || path != "/v1/test" {
 		t.Errorf("Data payload mismatch or type loss")
-	}
-}
-
-func TestEvent_JSONMarshalingWithDefaults(t *testing.T) {
-	// Test that unmarshaling JSON without tenant_id works after validation
-	jsonData := `{
-		"id": "evt_789",
-		"principal_id": "apikey:prod-key-456",
-		"type": "webhook.received",
-		"occurred_at": "2024-01-01T12:00:00Z",
-		"data": {"source": "stripe"}
-	}`
-
-	var evt Event
-	if err := json.Unmarshal([]byte(jsonData), &evt); err != nil {
-		t.Fatalf("Unmarshal failed: %v", err)
-	}
-
-	// Validate should apply defaults
-	if err := evt.Validate(); err != nil {
-		t.Fatalf("Validation failed: %v", err)
-	}
-
-	if evt.TenantID != "default" {
-		t.Errorf("TenantID should default to 'default', got %q", evt.TenantID)
-	}
-	if evt.PrincipalID != "apikey:prod-key-456" {
-		t.Errorf("PrincipalID mismatch: got %q", evt.PrincipalID)
 	}
 }
 

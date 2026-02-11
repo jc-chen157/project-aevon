@@ -49,7 +49,6 @@ type Service struct {
 type checkpointSnapshotReader interface {
 	QueryRangeWithCheckpoint(
 		ctx context.Context,
-		tenantID string,
 		principalID string,
 		ruleName string,
 		bucketSize string,
@@ -122,7 +121,6 @@ func (s *Service) QueryAggregates(ctx context.Context, req AggregateQueryRequest
 	}
 
 	return &AggregateQueryResponse{
-		TenantID:         req.TenantID,
 		PrincipalID:      req.PrincipalID,
 		Rule:             req.Rule,
 		Operator:         rule.Operator,
@@ -140,9 +138,6 @@ func (s *Service) normalizeAndValidate(req AggregateQueryRequest) (AggregateQuer
 		req.Granularity = "total"
 	}
 
-	if req.TenantID == "" {
-		return req, invalidQueryf("tenant_id is required")
-	}
 	if req.PrincipalID == "" {
 		return req, invalidQueryf("principal_id is required")
 	}
@@ -180,7 +175,6 @@ func (s *Service) loadPreAggregates(ctx context.Context, req AggregateQueryReque
 		if hasSnapshotReader {
 			aggregates, checkpoint, err = snapshotReader.QueryRangeWithCheckpoint(
 				ctx,
-				req.TenantID,
 				req.PrincipalID,
 				req.Rule,
 				bucketSize,
@@ -193,7 +187,6 @@ func (s *Service) loadPreAggregates(ctx context.Context, req AggregateQueryReque
 		} else {
 			aggregates, err = s.preAggStore.QueryRange(
 				ctx,
-				req.TenantID,
 				req.PrincipalID,
 				req.Rule,
 				bucketSize,
@@ -269,7 +262,6 @@ func (s *Service) scanScopedRawEvents(
 		// Safety limit: prevent unbounded scanning if checkpoint is far behind
 		if iterations >= maxRawQueryIterations {
 			slog.Warn("Raw event tail scan reached maximum iteration limit",
-				"tenant", req.TenantID,
 				"principal", req.PrincipalID,
 				"iterations", iterations,
 				"events_scanned", totalEvents,
@@ -282,7 +274,6 @@ func (s *Service) scanScopedRawEvents(
 		events, queryErr := s.eventStore.RetrieveScopedEventsAfterCursor(
 			ctx,
 			cursor,
-			req.TenantID,
 			req.PrincipalID,
 			eventType,
 			req.Start,

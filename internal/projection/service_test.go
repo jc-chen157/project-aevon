@@ -35,7 +35,6 @@ func TestService_QueryAggregates_Validation(t *testing.T) {
 		{
 			name: "end before start",
 			req: AggregateQueryRequest{
-				TenantID:    "tenant-1",
 				PrincipalID: "user-1",
 				Rule:        "count_requests",
 				Start:       now,
@@ -45,7 +44,6 @@ func TestService_QueryAggregates_Validation(t *testing.T) {
 		{
 			name: "invalid granularity",
 			req: AggregateQueryRequest{
-				TenantID:    "tenant-1",
 				PrincipalID: "user-1",
 				Rule:        "count_requests",
 				Start:       now.Add(-time.Hour),
@@ -56,7 +54,6 @@ func TestService_QueryAggregates_Validation(t *testing.T) {
 		{
 			name: "unknown rule",
 			req: AggregateQueryRequest{
-				TenantID:    "tenant-1",
 				PrincipalID: "user-1",
 				Rule:        "missing_rule",
 				Start:       now.Add(-time.Hour),
@@ -82,14 +79,14 @@ func TestService_QueryAggregates_EmptyResultSetsDataThroughToEnd(t *testing.T) {
 
 	preAggStore := aggregationmocks.NewPreAggregateStore(t)
 	preAggStore.EXPECT().
-		QueryRange(mock.Anything, "tenant-1", "user-1", "count_requests", "1m", start, end).
+		QueryRange(mock.Anything, "user-1", "count_requests", "1m", start, end).
 		Return([]coreagg.AggregateState(nil), nil).
 		Once()
 	preAggStore.EXPECT().ReadCheckpoint(mock.Anything, "1m").Return(int64(0), nil).Once()
 
 	eventStore := storagemocks.NewEventStore(t)
 	eventStore.EXPECT().
-		RetrieveScopedEventsAfterCursor(mock.Anything, int64(0), "tenant-1", "user-1", "api.request", start, end, rawQueryBatchSize).
+		RetrieveScopedEventsAfterCursor(mock.Anything, int64(0), "user-1", "api.request", start, end, rawQueryBatchSize).
 		Return([]*v1.Event{}, nil).
 		Once()
 
@@ -105,7 +102,6 @@ func TestService_QueryAggregates_EmptyResultSetsDataThroughToEnd(t *testing.T) {
 	svc.nowFn = func() time.Time { return now }
 
 	resp, err := svc.QueryAggregates(context.Background(), AggregateQueryRequest{
-		TenantID:    "tenant-1",
 		PrincipalID: "user-1",
 		Rule:        "count_requests",
 		Start:       start,
@@ -126,7 +122,7 @@ func TestService_QueryAggregates_HybridMergesRawTail(t *testing.T) {
 
 	preAggStore := aggregationmocks.NewPreAggregateStore(t)
 	preAggStore.EXPECT().
-		QueryRange(mock.Anything, "tenant-1", "user-1", "count_requests", "1m", start, end).
+		QueryRange(mock.Anything, "user-1", "count_requests", "1m", start, end).
 		Return([]coreagg.AggregateState{
 			{
 				Operator:        coreagg.OpCount,
@@ -143,11 +139,10 @@ func TestService_QueryAggregates_HybridMergesRawTail(t *testing.T) {
 
 	eventStore := storagemocks.NewEventStore(t)
 	eventStore.EXPECT().
-		RetrieveScopedEventsAfterCursor(mock.Anything, int64(100), "tenant-1", "user-1", "api.request", start, end, rawQueryBatchSize).
+		RetrieveScopedEventsAfterCursor(mock.Anything, int64(100), "user-1", "api.request", start, end, rawQueryBatchSize).
 		Return([]*v1.Event{
 			{
 				ID:          "evt-11",
-				TenantID:    "tenant-1",
 				PrincipalID: "user-1",
 				Type:        "api.request",
 				OccurredAt:  start.Add(30 * time.Second),
@@ -157,7 +152,6 @@ func TestService_QueryAggregates_HybridMergesRawTail(t *testing.T) {
 			},
 			{
 				ID:          "evt-12",
-				TenantID:    "tenant-1",
 				PrincipalID: "user-1",
 				Type:        "api.request",
 				OccurredAt:  start.Add(40 * time.Second),
@@ -180,7 +174,6 @@ func TestService_QueryAggregates_HybridMergesRawTail(t *testing.T) {
 	svc.nowFn = func() time.Time { return now }
 
 	resp, err := svc.QueryAggregates(context.Background(), AggregateQueryRequest{
-		TenantID:    "tenant-1",
 		PrincipalID: "user-1",
 		Rule:        "count_requests",
 		Start:       start,
@@ -203,8 +196,8 @@ func TestService_QueryAggregates_UsesFixed1mBucket(t *testing.T) {
 	calledBuckets := make([]string, 0, 1)
 	preAggStore := aggregationmocks.NewPreAggregateStore(t)
 	preAggStore.EXPECT().
-		QueryRange(mock.Anything, "tenant-1", "user-1", "sum_bytes", "1m", start, end).
-		Run(func(ctx context.Context, tenantID string, principalID string, ruleName string, bucketSize string, startTime time.Time, endTime time.Time) {
+		QueryRange(mock.Anything, "user-1", "sum_bytes", "1m", start, end).
+		Run(func(ctx context.Context, principalID string, ruleName string, bucketSize string, startTime time.Time, endTime time.Time) {
 			calledBuckets = append(calledBuckets, bucketSize)
 		}).
 		Return([]coreagg.AggregateState{{
@@ -221,7 +214,7 @@ func TestService_QueryAggregates_UsesFixed1mBucket(t *testing.T) {
 
 	eventStore := storagemocks.NewEventStore(t)
 	eventStore.EXPECT().
-		RetrieveScopedEventsAfterCursor(mock.Anything, int64(0), "tenant-1", "user-1", "api.request", start, end, rawQueryBatchSize).
+		RetrieveScopedEventsAfterCursor(mock.Anything, int64(0), "user-1", "api.request", start, end, rawQueryBatchSize).
 		Return([]*v1.Event{}, nil).
 		Once()
 
@@ -236,7 +229,6 @@ func TestService_QueryAggregates_UsesFixed1mBucket(t *testing.T) {
 
 	svc := NewService(preAggStore, eventStore, rules)
 	resp, err := svc.QueryAggregates(context.Background(), AggregateQueryRequest{
-		TenantID:    "tenant-1",
 		PrincipalID: "user-1",
 		Rule:        "sum_bytes",
 		Start:       start,

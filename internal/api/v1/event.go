@@ -11,13 +11,8 @@ type Event struct {
 	// --- System Attributes (The Envelope) ---
 
 	// ID is the unique immutable identifier provided by the client.
-	// It MUST be unique per (TenantID, PrincipalID) to enforce idempotency.
+	// It MUST be unique per PrincipalID to enforce idempotency.
 	ID string `json:"id"`
-
-	// TenantID isolates events in a multi-tenant environment.
-	// For self-hosted deployments, this defaults to "default".
-	// For SaaS deployments, this is the customer/organization identifier.
-	TenantID string `json:"tenant_id"`
 
 	// PrincipalID identifies the actor/principal that generated this event.
 	// Examples: "user:alice@example.com", "account:123", "apikey:prod-key-789"
@@ -58,15 +53,9 @@ type Event struct {
 }
 
 // Validate ensures the event has all required system attributes.
-// It also applies defaults for optional fields (e.g., TenantID for self-hosted deployments).
 func (e *Event) Validate() error {
 	if e.ID == "" {
 		return fmt.Errorf("id is required")
-	}
-
-	// Default tenant_id to "default" for self-hosted deployments
-	if e.TenantID == "" {
-		e.TenantID = "default"
 	}
 
 	if e.PrincipalID == "" {

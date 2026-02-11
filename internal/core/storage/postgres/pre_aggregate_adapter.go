@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/aevon-lab/project-aevon/internal/core/aggregation"
-	"github.com/aevon-lab/project-aevon/internal/core/partition"
 	"github.com/shopspring/decimal"
 )
 
@@ -30,10 +29,10 @@ const (
 
 	queryUpsertPreAggregate = `
 		INSERT INTO pre_aggregates (
-			partition_id, tenant_id, principal_id, rule_name, rule_fingerprint,
+			partition_id, principal_id, rule_name, rule_fingerprint,
 			bucket_size, window_start, operator, value, event_count, last_event_id, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		ON CONFLICT (partition_id, tenant_id, principal_id, rule_name, bucket_size, window_start)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		ON CONFLICT (partition_id, principal_id, rule_name, bucket_size, window_start)
 		DO UPDATE SET
 			value = CASE EXCLUDED.operator
 				WHEN 'count' THEN pre_aggregates.value + EXCLUDED.value
@@ -58,7 +57,7 @@ const (
 
 	queryLoadAggregates = `
 		SELECT
-			partition_id, tenant_id, principal_id, rule_name, rule_fingerprint,
+			partition_id, principal_id, rule_name, rule_fingerprint,
 			bucket_size, window_start, operator, value, event_count, last_event_id, updated_at
 		FROM pre_aggregates
 	`
@@ -74,19 +73,18 @@ const (
 			updated_at
 		FROM pre_aggregates
 		WHERE partition_id = $1
-		  AND tenant_id = $2
-		  AND principal_id = $3
-		  AND rule_name = $4
-		  AND bucket_size = $5
-		  AND window_start >= $6
-		  AND window_start < $7
+		  AND principal_id = $2
+		  AND rule_name = $3
+		  AND bucket_size = $4
+		  AND window_start >= $5
+		  AND window_start < $6
 		ORDER BY window_start ASC
 	`
 
 	queryRangePreAggregatesWithCheckpoint = `
 		WITH checkpoint AS (
 			SELECT COALESCE(
-				(SELECT checkpoint_cursor FROM sweep_checkpoints WHERE bucket_size = $5),
+				(SELECT checkpoint_cursor FROM sweep_checkpoints WHERE bucket_size = $4),
 				0
 			) AS checkpoint_cursor
 		),
@@ -101,12 +99,11 @@ const (
 				updated_at
 			FROM pre_aggregates
 			WHERE partition_id = $1
-			  AND tenant_id = $2
-			  AND principal_id = $3
-			  AND rule_name = $4
-			  AND bucket_size = $5
-			  AND window_start >= $6
-			  AND window_start < $7
+			  AND principal_id = $2
+			  AND rule_name = $3
+			  AND bucket_size = $4
+			  AND window_start >= $5
+			  AND window_start < $6
 		)
 		SELECT
 			checkpoint.checkpoint_cursor,
@@ -201,7 +198,6 @@ func (a *PreAggregateAdapter) Flush(
 		}
 		if _, err := upsertStmt.ExecContext(ctx,
 			key.PartitionID,
-			key.TenantID,
 			key.PrincipalID,
 			key.RuleName,
 			state.RuleFingerprint,
@@ -286,7 +282,6 @@ func (a *PreAggregateAdapter) LoadAggregates(ctx context.Context) (map[aggregati
 
 		if err := rows.Scan(
 			&key.PartitionID,
-			&key.TenantID,
 			&key.PrincipalID,
 			&key.RuleName,
 			&state.RuleFingerprint,
@@ -325,7 +320,6 @@ func (a *PreAggregateAdapter) LoadAggregates(ctx context.Context) (map[aggregati
 // Returns aggregates ordered by window_start ASC.
 func (a *PreAggregateAdapter) QueryRange(
 	ctx context.Context,
-	tenantID string,
 	principalID string,
 	ruleName string,
 	bucketSize string,
@@ -336,9 +330,10 @@ func (a *PreAggregateAdapter) QueryRange(
 		bucketSize = defaultBucketSize
 	}
 
-	partitionID := partition.For(tenantID)
+	// Use fixed partition_id=0 for single-tenant deployments
+	partitionID := 0
 
-	rows, err := a.db.QueryContext(ctx, queryRangePreAggregates, partitionID, tenantID, principalID, ruleName, bucketSize, startTime, endTime)
+	rows, err := a.db.QueryContext(ctx, queryRangePreAggregates, partitionID, principalID, ruleName, bucketSize, startTime, endTime)
 
 	if err != nil {
 		return nil, fmt.Errorf("query pre_aggregates: %w", err)
@@ -384,7 +379,6 @@ func (a *PreAggregateAdapter) QueryRange(
 // from different flush versions.
 func (a *PreAggregateAdapter) QueryRangeWithCheckpoint(
 	ctx context.Context,
-	tenantID string,
 	principalID string,
 	ruleName string,
 	bucketSize string,
@@ -395,12 +389,13 @@ func (a *PreAggregateAdapter) QueryRangeWithCheckpoint(
 		bucketSize = defaultBucketSize
 	}
 
-	partitionID := partition.For(tenantID)
+	// Use fixed partition_id=0 for single-tenant deployments
+	partitionID := 0
 
 	rows, err := a.db.QueryContext(
 		ctx,
 		queryRangePreAggregatesWithCheckpoint,
-		partitionID, tenantID, principalID, ruleName, bucketSize, startTime, endTime,
+		partitionID, principalID, ruleName, bucketSize, startTime, endTime,
 	)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query pre_aggregates with checkpoint: %w", err)

@@ -40,7 +40,6 @@ func scanEventRow(row scanner) (*v1.Event, error) {
 
 	err := row.Scan(
 		&evt.ID,
-		&evt.TenantID,
 		&evt.PrincipalID,
 		&evt.Type,
 		&evt.SchemaVersion,

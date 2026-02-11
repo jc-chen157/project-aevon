@@ -1,5 +1,5 @@
--- Rollback consolidated baseline migration
--- Drops all tables created by 001_create_schema.up.sql
+-- Rollback migration 001: Drop all tables
+-- Date: 2026-02-10
 
 DROP TABLE IF EXISTS sweep_checkpoints;
 DROP TABLE IF EXISTS pre_aggregates;

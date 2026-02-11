@@ -1,0 +1,3 @@
+name: "count_api_requests"
+source_event: "api.request"
+operator: "count"

@@ -12,17 +12,16 @@ import (
 // RegisterRoutes registers all projection API routes on the given router.
 func (s *Service) RegisterRoutes(r gin.IRouter) {
 	// Canonical state query endpoint.
-	r.GET("/v1/state/:tenant_id/:principal_id", s.HandleQueryAggregates)
+	r.GET("/v1/state/:principal_id", s.HandleQueryAggregates)
 
 	// Backward-compatible alias. Can be removed after clients migrate.
-	r.GET("/v1/aggregates/:tenant_id/:principal_id", s.HandleQueryAggregates)
+	r.GET("/v1/aggregates/:principal_id", s.HandleQueryAggregates)
 }
 
-// HandleQueryAggregates handles GET /v1/state/:tenant_id/:principal_id
+// HandleQueryAggregates handles GET /v1/state/:principal_id
 // Query parameters: rule, start, end, granularity
 func (s *Service) HandleQueryAggregates(c *gin.Context) {
 	var uri struct {
-		TenantID    string `uri:"tenant_id" binding:"required"`
 		PrincipalID string `uri:"principal_id" binding:"required"`
 	}
 	var query struct {
@@ -32,7 +31,7 @@ func (s *Service) HandleQueryAggregates(c *gin.Context) {
 		Granularity string    `form:"granularity"`
 	}
 
-	// Bind URI parameters (tenant_id, principal_id)
+	// Bind URI parameters (principal_id)
 	if err := c.ShouldBindUri(&uri); err != nil {
 		c.JSON(http.StatusBadRequest, httperr.ErrorResponse{
 			ErrorType: httperr.HttpInvalidJsonError,
@@ -53,7 +52,6 @@ func (s *Service) HandleQueryAggregates(c *gin.Context) {
 	}
 
 	req := AggregateQueryRequest{
-		TenantID:    uri.TenantID,
 		PrincipalID: uri.PrincipalID,
 		Rule:        query.Rule,
 		Start:       query.Start,

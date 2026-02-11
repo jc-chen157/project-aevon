@@ -41,10 +41,9 @@ type PreAggregateStore interface {
 	// QueryRange fetches pre-aggregates for a time range.
 	// Used by projection API to serve usage queries.
 	// Returns aggregates ordered by window_start ASC.
-	// Filters by tenant, principal, rule, and time range.
+	// Filters by principal, rule, and time range.
 	QueryRange(
 		ctx context.Context,
-		tenantID string,
 		principalID string,
 		ruleName string,
 		bucketSize string,

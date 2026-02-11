@@ -67,14 +67,12 @@ func TestCoreAPI_EventsAndState(t *testing.T) {
 
 	require.NoError(t, resetDatabase(t, h.db))
 
-	tenantID := "tenant-integration"
 	principalID := "user-integration"
 	occurredAt := time.Now().UTC().Truncate(time.Second)
 	eventID := fmt.Sprintf("evt-%d", time.Now().UnixNano())
 
 	event := v1.Event{
 		ID:          eventID,
-		TenantID:    tenantID,
 		PrincipalID: principalID,
 		Type:        "api.request",
 		OccurredAt:  occurredAt,
@@ -90,7 +88,7 @@ func TestCoreAPI_EventsAndState(t *testing.T) {
 	query.Set("end", occurredAt.Add(2*time.Minute).Format(time.RFC3339))
 	query.Set("granularity", "total")
 
-	stateURL := fmt.Sprintf("%s/v1/state/%s/%s?%s", h.baseURL, tenantID, principalID, query.Encode())
+	stateURL := fmt.Sprintf("%s/v1/state/%s?%s", h.baseURL, principalID, query.Encode())
 	resp, err := h.client.Get(stateURL)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -120,7 +118,6 @@ func TestCoreAPI_DuplicateEventReturnsConflict(t *testing.T) {
 
 	event := v1.Event{
 		ID:          "evt-duplicate-integration",
-		TenantID:    "tenant-integration",
 		PrincipalID: "user-integration",
 		Type:        "api.request",
 		OccurredAt:  time.Now().UTC().Truncate(time.Second),

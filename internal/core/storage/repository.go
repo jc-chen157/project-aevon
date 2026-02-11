@@ -8,7 +8,7 @@ import (
 	v1 "github.com/aevon-lab/project-aevon/internal/api/v1"
 )
 
-// ErrDuplicate is returned when an event with the same (tenant_id, principal_id, id) already exists.
+// ErrDuplicate is returned when an event with the same (principal_id, id) already exists.
 var ErrDuplicate = errors.New("event already exists")
 
 // EventStore defines the interface for storing and retrieving events.
@@ -29,7 +29,6 @@ type EventStore interface {
 	RetrieveScopedEventsAfterCursor(
 		ctx context.Context,
 		cursor int64,
-		tenantID string,
 		principalID string,
 		eventType string,
 		startOccurredAt time.Time,

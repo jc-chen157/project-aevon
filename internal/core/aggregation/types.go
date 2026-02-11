@@ -20,7 +20,6 @@ const (
 // even when running as a single instance.
 type AggregateKey struct {
 	PartitionID int
-	TenantID    string
 	PrincipalID string
 	RuleName    string
 	BucketSize  string    // e.g. "1m", "10m", "1h"
