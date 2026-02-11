@@ -1,0 +1,44 @@
+event: comprehensive.example
+version: 1
+description: Comprehensive schema demonstrating all scalar types and constraints
+strictMode: true
+
+fields:
+  # Shorthand — no constraints needed
+  user_id: int64!
+  cached: bool
+  authenticated: bool!
+
+  # Long form — constraints present
+  endpoint:
+    type: string!
+    minLength: 1
+    maxLength: 500
+    pattern: "^/[a-zA-Z0-9/_-]*$"
+
+  method:
+    type: string!
+    enum: [GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS]
+
+  user_agent:
+    type: string
+    maxLength: 1000
+
+  status_code:
+    type: int32!
+    min: 100
+    max: 599
+
+  response_time_ms:
+    type: float
+    min: 0
+
+  cpu_usage:
+    type: double
+    min: 0.0
+    max: 100.0
+
+  retry_count:
+    type: int32
+    min: 0
+    max: 10
