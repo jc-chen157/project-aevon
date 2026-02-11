@@ -396,7 +396,7 @@ func TestBatchJob_BucketScopedCheckpoint(t *testing.T) {
 		},
 	}
 
-	err := RunBatchAggregationWithOptions(ctx, eventStore, preAggStore, rules, BatchJobOptions{
+	err := RunBatchAggregationWithOptions(ctx, eventStore, preAggStore, rules, BatchJobParameter{
 		BatchSize:   50000,
 		WorkerCount: 10,
 		BucketSize:  time.Minute,
@@ -405,7 +405,7 @@ func TestBatchJob_BucketScopedCheckpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2), preAggStore.checkpoints["1m"])
 
-	err = RunBatchAggregationWithOptions(ctx, eventStore, preAggStore, rules, BatchJobOptions{
+	err = RunBatchAggregationWithOptions(ctx, eventStore, preAggStore, rules, BatchJobParameter{
 		BatchSize:   50000,
 		WorkerCount: 10,
 		BucketSize:  10 * time.Minute,

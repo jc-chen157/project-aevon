@@ -16,7 +16,7 @@ type Scheduler struct {
 	eventStore  storage.EventStore
 	preAggStore PreAggregateStore
 	rules       []aggregation.AggregationRule
-	opts        BatchJobOptions
+	opts        BatchJobParameter
 }
 
 // NewScheduler creates a cron scheduler for one bucket_size stream.
@@ -25,7 +25,7 @@ func NewScheduler(
 	eventStore storage.EventStore,
 	preAggStore PreAggregateStore,
 	rules []aggregation.AggregationRule,
-	opts BatchJobOptions,
+	opts BatchJobParameter,
 ) *Scheduler {
 	return &Scheduler{
 		interval:    interval,

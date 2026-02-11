@@ -95,7 +95,7 @@ func main() {
 			dbAdapter, // EventStore
 			preAggStore,
 			cfg.RuleLoading.Rules,
-			aggregation.BatchJobOptions{
+			aggregation.BatchJobParameter{
 				BatchSize:   cfg.Aggregation.BatchSize,
 				WorkerCount: cfg.Aggregation.WorkerCount,
 				BucketSize:  time.Minute,

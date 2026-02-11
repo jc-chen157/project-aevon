@@ -19,8 +19,8 @@ const (
 	defaultWorkerCount = 10
 )
 
-// BatchJobOptions controls throughput and aggregation behavior for a batch run.
-type BatchJobOptions struct {
+// BatchJobParameter controls throughput and aggregation behavior for a batch run.
+type BatchJobParameter struct {
 	BatchSize   int
 	WorkerCount int
 	BucketSize  time.Duration
@@ -28,8 +28,8 @@ type BatchJobOptions struct {
 }
 
 // DefaultBatchJobOptions returns safe defaults for cron-based processing.
-func DefaultBatchJobOptions() BatchJobOptions {
-	return BatchJobOptions{
+func DefaultBatchJobOptions() BatchJobParameter {
+	return BatchJobParameter{
 		BatchSize:   defaultBatchSize,
 		WorkerCount: defaultWorkerCount,
 		BucketSize:  time.Minute,
@@ -37,7 +37,7 @@ func DefaultBatchJobOptions() BatchJobOptions {
 	}
 }
 
-func (o BatchJobOptions) normalized() BatchJobOptions {
+func (o BatchJobParameter) normalized() BatchJobParameter {
 	n := o
 	if n.BatchSize <= 0 {
 		n.BatchSize = defaultBatchSize
@@ -72,48 +72,48 @@ func RunBatchAggregationWithOptions(
 	eventStore storage.EventStore,
 	preAggStore PreAggregateStore,
 	rules []aggregation.AggregationRule,
-	opts BatchJobOptions,
+	jobParameter BatchJobParameter,
 ) error {
-	opts = opts.normalized()
+	jobParameter = jobParameter.normalized()
 
-	cursor, err := preAggStore.ReadCheckpoint(ctx, opts.BucketLabel)
+	cursor, err := preAggStore.ReadCheckpoint(ctx, jobParameter.BucketLabel)
 	if err != nil {
 		return fmt.Errorf("read checkpoint: %w", err)
 	}
 
 	slog.Info("[BatchJob] Starting batch aggregation",
 		"cursor", cursor,
-		"bucket_size", opts.BucketLabel,
-		"batch_size", opts.BatchSize,
-		"workers", opts.WorkerCount,
+		"bucket_size", jobParameter.BucketLabel,
+		"batch_size", jobParameter.BatchSize,
+		"workers", jobParameter.WorkerCount,
 	)
 
-	events, err := eventStore.RetrieveEventsAfterCursor(ctx, cursor, opts.BatchSize)
+	events, err := eventStore.RetrieveEventsAfterCursor(ctx, cursor, jobParameter.BatchSize)
 	if err != nil {
 		return fmt.Errorf("query events: %w", err)
 	}
 
 	if len(events) == 0 {
-		slog.Debug("[BatchJob] No new events to process", "bucket_size", opts.BucketLabel)
+		slog.Debug("[BatchJob] No new events to process", "bucket_size", jobParameter.BucketLabel)
 		return nil
 	}
 
 	slog.Info("[BatchJob] Processing events",
 		"count", len(events),
 		"from_cursor", cursor,
-		"bucket_size", opts.BucketLabel,
+		"bucket_size", jobParameter.BucketLabel,
 	)
 
-	ruleCache := buildCompiledRuleCache(rules)
-	aggregates := buildAggregatesConcurrently(events, ruleCache, opts)
+	ruleMap := toCompiledRuleMap(rules)
+	aggregates := buildPreAggregatesConcurrently(events, ruleMap, jobParameter)
 
 	slog.Info("[BatchJob] Computed aggregates",
 		"aggregate_count", len(aggregates),
-		"bucket_size", opts.BucketLabel,
+		"bucket_size", jobParameter.BucketLabel,
 	)
 
 	newCursor := events[len(events)-1].IngestSeq
-	if err := preAggStore.Flush(ctx, aggregates, newCursor, opts.BucketLabel); err != nil {
+	if err := preAggStore.Flush(ctx, aggregates, newCursor, jobParameter.BucketLabel); err != nil {
 		return fmt.Errorf("flush aggregates: %w", err)
 	}
 
@@ -121,7 +121,7 @@ func RunBatchAggregationWithOptions(
 		"events_processed", len(events),
 		"aggregates_computed", len(aggregates),
 		"cursor_advanced", fmt.Sprintf("%d -> %d", cursor, newCursor),
-		"bucket_size", opts.BucketLabel,
+		"bucket_size", jobParameter.BucketLabel,
 	)
 
 	return nil
@@ -133,13 +133,13 @@ func RunBatchAggregationWithOptions(
 func RunBatchAggregationWithOptionsReturningCount(
 	ctx context.Context,
 	eventStore storage.EventStore,
-	preAggStore PreAggregateStore,
+	preAggregateStore PreAggregateStore,
 	rules []aggregation.AggregationRule,
-	opts BatchJobOptions,
+	opts BatchJobParameter,
 ) (int, error) {
 	opts = opts.normalized()
 
-	cursor, err := preAggStore.ReadCheckpoint(ctx, opts.BucketLabel)
+	cursor, err := preAggregateStore.ReadCheckpoint(ctx, opts.BucketLabel)
 	if err != nil {
 		return 0, fmt.Errorf("read checkpoint: %w", err)
 	}
@@ -153,11 +153,11 @@ func RunBatchAggregationWithOptionsReturningCount(
 		return 0, nil
 	}
 
-	ruleCache := buildCompiledRuleCache(rules)
-	aggregates := buildAggregatesConcurrently(events, ruleCache, opts)
+	ruleMap := toCompiledRuleMap(rules)
+	aggregates := buildPreAggregatesConcurrently(events, ruleMap, opts)
 
 	newCursor := events[len(events)-1].IngestSeq
-	if err := preAggStore.Flush(ctx, aggregates, newCursor, opts.BucketLabel); err != nil {
+	if err := preAggregateStore.Flush(ctx, aggregates, newCursor, opts.BucketLabel); err != nil {
 		return 0, fmt.Errorf("flush aggregates: %w", err)
 	}
 
@@ -180,23 +180,23 @@ type compiledRule struct {
 	agg  aggregation.Aggregator
 }
 
-func buildCompiledRuleCache(rules []aggregation.AggregationRule) map[string][]compiledRule {
-	cache := make(map[string][]compiledRule)
+func toCompiledRuleMap(rules []aggregation.AggregationRule) map[string][]compiledRule {
+	ruleMap := make(map[string][]compiledRule)
 	for _, r := range rules {
 		agg, ok := aggregation.Operators[r.Operator]
 		if !ok {
 			slog.Warn("[BatchJob] Skip rule with unknown operator", "rule", r.Name, "operator", r.Operator)
 			continue
 		}
-		cache[r.SourceEvent] = append(cache[r.SourceEvent], compiledRule{rule: r, agg: agg})
+		ruleMap[r.SourceEvent] = append(ruleMap[r.SourceEvent], compiledRule{rule: r, agg: agg})
 	}
-	return cache
+	return ruleMap
 }
 
-func buildAggregatesConcurrently(
+func buildPreAggregatesConcurrently(
 	events []*v1.Event,
-	ruleCache map[string][]compiledRule,
-	opts BatchJobOptions,
+	ruleMap map[string][]compiledRule,
+	jobParameter BatchJobParameter,
 ) map[aggregation.AggregateKey]aggregation.AggregateState {
 	groups := make(map[eventGroupKey][]*v1.Event)
 	for _, evt := range events {
@@ -205,9 +205,9 @@ func buildAggregatesConcurrently(
 	}
 
 	jobs := make(chan []*v1.Event, len(groups))
-	results := make(chan map[aggregation.AggregateKey]aggregation.AggregateState, minInt(opts.WorkerCount, len(groups)))
+	results := make(chan map[aggregation.AggregateKey]aggregation.AggregateState, minInt(jobParameter.WorkerCount, len(groups)))
 
-	workerCount := minInt(opts.WorkerCount, len(groups))
+	workerCount := minInt(jobParameter.WorkerCount, len(groups))
 	if workerCount <= 0 {
 		return map[aggregation.AggregateKey]aggregation.AggregateState{}
 	}
@@ -220,7 +220,7 @@ func buildAggregatesConcurrently(
 			defer wg.Done()
 			local := make(map[aggregation.AggregateKey]aggregation.AggregateState)
 			for groupEvents := range jobs {
-				mergeGroupAggregates(local, groupEvents, ruleCache, opts, now)
+				mergeGroupAggregates(local, groupEvents, ruleMap, jobParameter, now)
 			}
 			results <- local
 		}()
@@ -257,7 +257,7 @@ func mergeGroupAggregates(
 	target map[aggregation.AggregateKey]aggregation.AggregateState,
 	events []*v1.Event,
 	ruleCache map[string][]compiledRule,
-	opts BatchJobOptions,
+	opts BatchJobParameter,
 	now time.Time,
 ) {
 	for _, evt := range events {

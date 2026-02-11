@@ -174,7 +174,7 @@ func startHarness(t *testing.T) *integrationHarness {
 		adapter,
 		preAggStore,
 		ruleRepo.GetRules(),
-		aggregation.BatchJobOptions{
+		aggregation.BatchJobParameter{
 			BatchSize:   1000,
 			WorkerCount: 2,
 			BucketSize:  time.Minute,
