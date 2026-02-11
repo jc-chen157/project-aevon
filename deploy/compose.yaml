@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aevon-postgres
+    environment:
+      POSTGRES_USER: aevon_dev
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_DB: aevon
+    ports:
+      - "5432:5432"
+    volumes:
+      - aevon-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aevon_dev -d aevon"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  aevon-pg-data:

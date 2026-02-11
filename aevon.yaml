@@ -1,0 +1,21 @@
+server:
+  port: 8080
+  host: "0.0.0.0"
+
+database:
+  type: "postgres"
+  dsn: "postgres://aevon_dev:dev_password@localhost:5432/aevon?sslmode=disable"
+  max_open_conns: 25
+  max_idle_conns: 25
+
+schema:
+  source_type: "filesystem"
+  path: "./schemas"
+
+aggregation:
+  config_dir: "./config/aggregations"
+  enabled: true
+  cron_interval: "2m"
+  batch_size: 50000
+  worker_count: 10
+  channel_buffer_size: 1024

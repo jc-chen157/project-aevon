@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount the volume shared with git-sync
+      - schema-data:/app/schemas
+      # Persist SQLite DB
+      - aevon-data:/app/data
+    environment:
+      GIN_MODE: release
+    depends_on:
+      - schema-sync
+
+  schema-sync:
+    image: k8s.gcr.io/git-sync/git-sync:v3.6.8
+    environment:
+      GIT_SYNC_REPO: "https://github.com/aevon-lab/schema-registry-demo.git"
+      GIT_SYNC_BRANCH: "main"
+      GIT_SYNC_ROOT: "/schemas"
+      GIT_SYNC_DEST: "current" # checkouts to /schemas/current
+      GIT_SYNC_WAIT: "10" # Sync every 10 seconds
+    volumes:
+      - schema-data:/schemas
+
+volumes:
+  schema-data:
+  aevon-data:
