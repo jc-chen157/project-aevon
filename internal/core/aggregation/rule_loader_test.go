@@ -224,3 +224,28 @@ operator: "count"
 		t.Fatal("expected error for missing source_event, got nil")
 	}
 }
+
+func TestFileSystemRuleRepository_GetRules(t *testing.T) {
+	dir := t.TempDir()
+	writeRule(t, dir, "one.yaml", `
+name: "one"
+source_event: "event.one"
+operator: "count"
+`)
+	writeRule(t, dir, "two.yaml", `
+name: "two"
+source_event: "event.two"
+operator: "sum"
+field: "amount"
+`)
+
+	repo, err := NewFileSystemRuleRepository(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rules := repo.GetRules()
+	if len(rules) != 2 {
+		t.Fatalf("expected 2 rules, got %d", len(rules))
+	}
+}

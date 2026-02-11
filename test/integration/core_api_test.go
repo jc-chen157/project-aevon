@@ -41,6 +41,7 @@ type integrationHarness struct {
 	serverDone    chan error
 	schedulerDone chan error
 	adapter       *postgres.Adapter
+	rules         []coreagg.AggregationRule
 }
 
 func (h *integrationHarness) close(t *testing.T) {
@@ -53,10 +54,12 @@ func (h *integrationHarness) close(t *testing.T) {
 		t.Log("server shutdown timed out")
 	}
 
-	select {
-	case <-h.schedulerDone:
-	case <-time.After(5 * time.Second):
-		t.Log("scheduler shutdown timed out")
+	if h.schedulerDone != nil {
+		select {
+		case <-h.schedulerDone:
+		case <-time.After(5 * time.Second):
+			t.Log("scheduler shutdown timed out")
+		}
 	}
 
 	require.NoError(t, h.adapter.Close())
@@ -134,6 +137,16 @@ func TestCoreAPI_DuplicateEventReturnsConflict(t *testing.T) {
 
 func startHarness(t *testing.T) *integrationHarness {
 	t.Helper()
+	return startHarnessWithOptions(t, true, 200*time.Millisecond)
+}
+
+func startHarnessWithoutScheduler(t *testing.T) *integrationHarness {
+	t.Helper()
+	return startHarnessWithOptions(t, false, 0)
+}
+
+func startHarnessWithOptions(t *testing.T, startScheduler bool, schedulerInterval time.Duration) *integrationHarness {
+	t.Helper()
 
 	dsn := os.Getenv("AEVON_TEST_DSN")
 	if dsn == "" {
@@ -167,22 +180,24 @@ func startHarness(t *testing.T) *integrationHarness {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	serverDone := make(chan error, 1)
-	schedulerDone := make(chan error, 1)
+	var schedulerDone chan error
+	if startScheduler {
+		schedulerDone = make(chan error, 1)
+		scheduler := aggregation.NewScheduler(
+			schedulerInterval,
+			adapter,
+			preAggStore,
+			ruleRepo.GetRules(),
+			aggregation.BatchJobParameter{
+				BatchSize:   1000,
+				WorkerCount: 2,
+				BucketSize:  time.Minute,
+				BucketLabel: "1m",
+			},
+		)
+		go func() { schedulerDone <- scheduler.Start(ctx) }()
+	}
 
-	scheduler := aggregation.NewScheduler(
-		200*time.Millisecond,
-		adapter,
-		preAggStore,
-		ruleRepo.GetRules(),
-		aggregation.BatchJobParameter{
-			BatchSize:   1000,
-			WorkerCount: 2,
-			BucketSize:  time.Minute,
-			BucketLabel: "1m",
-		},
-	)
-
-	go func() { schedulerDone <- scheduler.Start(ctx) }()
 	go func() { serverDone <- httpServer.Run(ctx) }()
 
 	baseURL := "http://" + addr
@@ -196,6 +211,7 @@ func startHarness(t *testing.T) *integrationHarness {
 		serverDone:    serverDone,
 		schedulerDone: schedulerDone,
 		adapter:       adapter,
+		rules:         ruleRepo.GetRules(),
 	}
 }
 
@@ -276,4 +292,69 @@ func projectRoot(t *testing.T) string {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	require.NoError(t, err)
 	return root
+}
+
+func readCheckpoint(t *testing.T, db *sql.DB) int64 {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var cursor int64
+	err := db.QueryRowContext(ctx, `SELECT checkpoint_cursor FROM sweep_checkpoints WHERE bucket_size='1m'`).Scan(&cursor)
+	require.NoError(t, err)
+	return cursor
+}
+
+func waitForCheckpoint(t *testing.T, db *sql.DB, minCursor int64, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if readCheckpoint(t, db) >= minCursor {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("checkpoint did not reach %d within %s", minCursor, timeout)
+}
+
+func waitForPreAggregateRows(t *testing.T, db *sql.DB, principalID, ruleName string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		var count int
+		err := db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM pre_aggregates WHERE principal_id=$1 AND rule_name=$2 AND bucket_size='1m'`,
+			principalID,
+			ruleName,
+		).Scan(&count)
+		cancel()
+		require.NoError(t, err)
+		if count > 0 {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("pre_aggregates rows for principal=%s rule=%s not ready within %s", principalID, ruleName, timeout)
+}
+
+func runBatchAggregationOnce(t *testing.T, h *integrationHarness) {
+	t.Helper()
+	preAggStore := postgres.NewPreAggregateAdapter(h.db)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := aggregation.RunBatchAggregationWithOptions(
+		ctx,
+		h.adapter,
+		preAggStore,
+		h.rules,
+		aggregation.BatchJobParameter{
+			BatchSize:   1000,
+			WorkerCount: 2,
+			BucketSize:  time.Minute,
+			BucketLabel: "1m",
+		},
+	)
+	require.NoError(t, err)
 }

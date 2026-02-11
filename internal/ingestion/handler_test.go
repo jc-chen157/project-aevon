@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,6 +20,11 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+type errReadCloser struct{}
+
+func (errReadCloser) Read(_ []byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+func (errReadCloser) Close() error               { return nil }
 
 func TestIngestHandler_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -244,6 +250,56 @@ func TestIngestHandler_SchemaNotFound(t *testing.T) {
 	require.Equal(t, httperr.HttpSchemaNotFoundError, errResp.ErrorType)
 }
 
+func TestIngestHandler_SchemaValidationFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	evt := &v1.Event{
+		ID:            "evt-schema-validation-failure",
+		PrincipalID:   "user-1",
+		Type:          "api.request",
+		SchemaVersion: 1,
+		OccurredAt:    time.Now().UTC(),
+		Data:          map[string]interface{}{"field": "value"},
+	}
+	body, _ := json.Marshal(evt)
+
+	mockStore := storagemocks.NewEventStore(t)
+
+	// Return a schema so ingestion reaches validator.ValidateData path.
+	// We intentionally use a validator without registered YAML compiler/validator,
+	// which forces ValidateData to fail and exercises schema validation error mapping.
+	mockRepo := &mockSchemaRepo{
+		schema: &internalschema.Schema{
+			TenantID:    "default",
+			Type:        "api.request",
+			Version:     1,
+			Format:      internalschema.FormatYaml,
+			Definition:  []byte("event: api.request\nversion: 1\nfields:\n  field: string\n"),
+			Fingerprint: "fp-1",
+			State:       internalschema.StateActive,
+			CreatedAt:   time.Now().UTC(),
+		},
+	}
+	registry := internalschema.NewRegistry(mockRepo)
+	validator := internalschema.NewValidator(internalschema.NewFormatRegistry())
+	svc := NewService(registry, validator, mockStore, 1)
+
+	r := gin.New()
+	svc.RegisterRoutes(r)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/events", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+
+	var errResp httperr.ErrorResponse
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &errResp))
+	require.Equal(t, httperr.HttpSchemaValidationError, errResp.ErrorType)
+	require.Contains(t, errResp.Message, "compilation failed")
+}
+
 func TestIngestHandler_BodySizeLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -346,6 +402,63 @@ func TestListEventsHandler_InvalidQuery(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, resp.Code)
 }
 
+func TestListEventsHandler_InvalidQueryBinding(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockStore := storagemocks.NewEventStore(t)
+	registry := internalschema.NewRegistry(nil)
+	validator := internalschema.NewValidator(internalschema.NewFormatRegistry())
+	svc := NewService(registry, validator, mockStore, 1)
+
+	r := gin.New()
+	svc.RegisterRoutes(r)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/events/user-1?start=not-a-time&end=2026-02-08T10:10:00Z",
+		nil,
+	)
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+	var errResp httperr.ErrorResponse
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &errResp))
+	require.Equal(t, httperr.HttpInvalidJsonError, errResp.ErrorType)
+	require.Equal(t, "Invalid query parameters", errResp.Message)
+}
+
+func TestListEventsHandler_InvalidLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []string{
+		"/v1/events/user-1?start=2026-02-08T10:00:00Z&end=2026-02-08T10:10:00Z&limit=-1",
+		"/v1/events/user-1?start=2026-02-08T10:00:00Z&end=2026-02-08T10:10:00Z&limit=5001",
+	}
+
+	for _, path := range tests {
+		t.Run(path, func(t *testing.T) {
+			mockStore := storagemocks.NewEventStore(t)
+			registry := internalschema.NewRegistry(nil)
+			validator := internalschema.NewValidator(internalschema.NewFormatRegistry())
+			svc := NewService(registry, validator, mockStore, 1)
+
+			r := gin.New()
+			svc.RegisterRoutes(r)
+
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			resp := httptest.NewRecorder()
+			r.ServeHTTP(resp, req)
+
+			require.Equal(t, http.StatusBadRequest, resp.Code)
+			var errResp httperr.ErrorResponse
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &errResp))
+			require.Equal(t, httperr.HttpInvalidJsonError, errResp.ErrorType)
+			require.Equal(t, "Invalid query parameters", errResp.Message)
+		})
+	}
+}
+
 func TestListEventsHandler_StoreError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -374,6 +487,29 @@ func TestListEventsHandler_StoreError(t *testing.T) {
 	r.ServeHTTP(resp, req)
 
 	require.Equal(t, http.StatusInternalServerError, resp.Code)
+}
+
+func TestService_ParseEvent_ReadBodyError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockStore := storagemocks.NewEventStore(t)
+	registry := internalschema.NewRegistry(nil)
+	validator := internalschema.NewValidator(internalschema.NewFormatRegistry())
+	svc := NewService(registry, validator, mockStore, 1)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/v1/events", nil)
+	req.Body = errReadCloser{}
+	c.Request = req
+
+	evt, payloadSize, err := svc.parseEvent(c)
+	require.Nil(t, evt)
+	require.Equal(t, 0, payloadSize)
+	require.NotNil(t, err)
+	require.Equal(t, http.StatusInternalServerError, err.statusCode)
+	require.Equal(t, httperr.HttpInternalError, err.errorType)
+	require.Equal(t, msgReadBodyFailed, err.message)
 }
 
 // mockSchemaRepo is a simple in-memory schema repository for testing

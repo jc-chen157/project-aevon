@@ -122,6 +122,36 @@ func TestService_HandleQueryAggregates_StatusMapping(t *testing.T) {
 	}
 }
 
+func TestService_HandleQueryAggregates_InvalidQueryBindingReturnsBadRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	preAggStore := aggregationmocks.NewPreAggregateStore(t)
+	eventStore := storagemocks.NewEventStore(t)
+	svc := NewService(preAggStore, eventStore, []coreagg.AggregationRule{{
+		Name:        "count_requests",
+		SourceEvent: "api.request",
+		Operator:    coreagg.OpCount,
+		WindowSize:  time.Minute,
+	}})
+
+	r := gin.New()
+	svc.RegisterRoutes(r)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/state/user-1?rule=count_requests&start=not-a-time&end=2026-02-07T11:00:00Z",
+		nil,
+	)
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+	require.Equal(t, "invalid_json", body["error_type"])
+	require.Equal(t, "Invalid query parameters", body["message"])
+}
+
 func TestService_HandleQueryAggregates_TimeoutReturnsGatewayTimeout(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
