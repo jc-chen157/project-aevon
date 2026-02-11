@@ -15,9 +15,6 @@ import (
 func (s *Service) RegisterRoutes(r gin.IRouter) {
 	// Canonical state query endpoint.
 	r.GET("/v1/state/:principal_id", s.HandleQueryAggregates)
-
-	// Backward-compatible alias. Can be removed after clients migrate.
-	r.GET("/v1/aggregates/:principal_id", s.HandleQueryAggregates)
 }
 
 // HandleQueryAggregates handles GET /v1/state/:principal_id
