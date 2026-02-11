@@ -147,7 +147,7 @@ func Load(configPath string) (*Config, error) {
 		"schema.source_type":              "filesystem",
 		"schema.path":                     "./schemas",
 		"aggregation.config_dir":          "./config/aggregations",
-		"aggregation.require_rules":       true,
+		"aggregation.require_rules":       false,
 		"aggregation.enabled":             true,
 		"aggregation.cron_interval":       "2m",
 		"aggregation.sweep_interval":      "",

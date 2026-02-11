@@ -83,9 +83,13 @@ func main() {
 	// 4. Initialize Aggregation (Cron-based batch processing)
 	preAggStore := postgres.NewPreAggregateAdapter(dbAdapter.DB())
 
-	// MVP: aggregation runs on fixed 1-minute buckets.
-	schedulers := []*aggregation.Scheduler{
-		aggregation.NewScheduler(
+	schedulers := make([]*aggregation.Scheduler, 0, 1)
+	if cfg.Aggregation.Enabled && len(cfg.RuleLoading.Rules) == 0 {
+		slog.Warn("Aggregation is enabled but no rules were loaded; scheduler will not start")
+	}
+	if cfg.Aggregation.Enabled && len(cfg.RuleLoading.Rules) > 0 {
+		// MVP: aggregation runs on fixed 1-minute buckets.
+		schedulers = append(schedulers, aggregation.NewScheduler(
 			cronInterval,
 			dbAdapter, // EventStore
 			preAggStore,
@@ -96,16 +100,17 @@ func main() {
 				BucketSize:  time.Minute,
 				BucketLabel: "1m",
 			},
-		),
-	}
+		))
 
-	slog.Info("Aggregation scheduler(s) initialized",
-		"interval", cronInterval,
-		"enabled", cfg.Aggregation.Enabled,
-		"bucket_sizes", []string{"1m"},
-		"batch_size", cfg.Aggregation.BatchSize,
-		"worker_count", cfg.Aggregation.WorkerCount,
-	)
+		slog.Info("Aggregation scheduler(s) initialized",
+			"interval", cronInterval,
+			"enabled", cfg.Aggregation.Enabled,
+			"bucket_sizes", []string{"1m"},
+			"batch_size", cfg.Aggregation.BatchSize,
+			"worker_count", cfg.Aggregation.WorkerCount,
+			"rules_loaded", len(cfg.RuleLoading.Rules),
+		)
+	}
 
 	// 5. Initialize Ingestion (no event channel - just write to DB)
 	ingestionSvc := ingestion.NewService(registry, validator, dbAdapter, cfg.Server.MaxBodySizeMB)
@@ -123,7 +128,7 @@ func main() {
 	defer cancel()
 
 	// Start aggregation scheduler(s) in background if enabled
-	if cfg.Aggregation.Enabled {
+	if cfg.Aggregation.Enabled && len(schedulers) > 0 {
 		for _, scheduler := range schedulers {
 			go func(s *aggregation.Scheduler) {
 				if err := s.Start(ctx); err != nil {
@@ -131,8 +136,10 @@ func main() {
 				}
 			}(scheduler)
 		}
-	} else {
+	} else if !cfg.Aggregation.Enabled {
 		slog.Info("Aggregation scheduler disabled by config")
+	} else {
+		slog.Info("Aggregation scheduler not started because no rules were loaded")
 	}
 
 	// Signal handler → triggers the shutdown sequence below.

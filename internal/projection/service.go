@@ -21,6 +21,7 @@ const (
 	defaultBucketSize     = "1m"
 	rawQueryBatchSize     = 5000
 	maxRawQueryIterations = 20 // Limit to prevent timeout/OOM when checkpoint is far behind
+	defaultQueryTimeout   = 10 * time.Second
 )
 
 var (
@@ -38,10 +39,11 @@ var (
 // Service implements the projection/query layer.
 // It serves a hybrid read path: durable pre-aggregates + unflushed raw events.
 type Service struct {
-	preAggStore aggstore.PreAggregateStore
-	eventStore  storage.EventStore
-	rules       map[string]coreagg.AggregationRule
-	nowFn       func() time.Time
+	preAggStore  aggstore.PreAggregateStore
+	eventStore   storage.EventStore
+	rules        map[string]coreagg.AggregationRule
+	nowFn        func() time.Time
+	queryTimeout time.Duration
 }
 
 // checkpointSnapshotReader allows projection reads to fetch checkpoint + aggregates
@@ -75,11 +77,21 @@ func NewService(
 		nowFn: func() time.Time {
 			return time.Now().UTC()
 		},
+		queryTimeout: defaultQueryTimeout,
 	}
+}
+
+func (s *Service) hasPreAggregationRule(ruleName string) bool {
+	_, ok := s.rules[ruleName]
+	return ok
 }
 
 // QueryAggregates retrieves aggregated usage data for a time range.
 func (s *Service) QueryAggregates(ctx context.Context, req AggregateQueryRequest) (*AggregateQueryResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	req, err := s.normalizeAndValidate(req)
 	if err != nil {
 		return nil, err

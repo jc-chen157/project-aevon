@@ -1,7 +1,9 @@
 package projection
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -60,8 +62,29 @@ func (s *Service) HandleQueryAggregates(c *gin.Context) {
 	}
 
 	// Execute query
-	resp, err := s.QueryAggregates(c.Request.Context(), req)
+	queryCtx, cancel := context.WithTimeout(c.Request.Context(), s.queryTimeout)
+	defer cancel()
+	resp, err := s.QueryAggregates(queryCtx, req)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			details := map[string]interface{}{
+				"timeout": s.queryTimeout.String(),
+			}
+			if !s.hasPreAggregationRule(req.Rule) {
+				details["advice"] = fmt.Sprintf(
+					"No pre-aggregation rule is configured for %q. Add a rule in aggregation.config_dir to pre-aggregate this query and avoid timeouts.",
+					req.Rule,
+				)
+			}
+
+			c.JSON(http.StatusGatewayTimeout, httperr.ErrorResponse{
+				ErrorType: httperr.HttpInternalError,
+				Message:   fmt.Sprintf("Projection query timed out after %s", s.queryTimeout),
+				Details:   details,
+			})
+			return
+		}
+
 		if errors.Is(err, ErrInvalidQuery) {
 			c.JSON(http.StatusBadRequest, httperr.ErrorResponse{
 				ErrorType: httperr.HttpInvalidJsonError,

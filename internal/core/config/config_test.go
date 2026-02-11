@@ -79,6 +79,30 @@ aggregation:
 	}
 }
 
+func TestLoad_NoAggregationRulesConfiguredAllowedByDefault(t *testing.T) {
+	root := t.TempDir()
+	schemaDir := filepath.Join(root, "schemas")
+	requireNoError(t, os.MkdirAll(schemaDir, 0o755))
+
+	cfgPath := filepath.Join(root, "aevon.yaml")
+	requireNoError(t, os.WriteFile(cfgPath, []byte(fmt.Sprintf(`
+database:
+  dsn: "postgres://dev:dev@localhost:5432/aevon?sslmode=disable"
+schema:
+  source_type: "filesystem"
+  path: "%s"
+aggregation:
+  config_dir: "%s"
+  enabled: true
+`, schemaDir, filepath.Join(root, "missing-rules-dir"))), 0o644))
+
+	cfg, err := Load(cfgPath)
+	requireNoError(t, err)
+	if len(cfg.RuleLoading.Rules) != 0 {
+		t.Fatalf("expected 0 loaded rules, got %d", len(cfg.RuleLoading.Rules))
+	}
+}
+
 func TestLoad_EnabledAggregationWithoutRulesFailsStartup(t *testing.T) {
 	root := t.TempDir()
 	schemaDir := filepath.Join(root, "schemas")
