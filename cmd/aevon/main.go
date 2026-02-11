@@ -11,8 +11,7 @@ import (
 	"time"
 
 	"github.com/aevon-lab/project-aevon/internal/aggregation"
-	"github.com/aevon-lab/project-aevon/internal/config"
-	coreagg "github.com/aevon-lab/project-aevon/internal/core/aggregation"
+	corecfg "github.com/aevon-lab/project-aevon/internal/core/config"
 	"github.com/aevon-lab/project-aevon/internal/core/storage/postgres"
 	"github.com/aevon-lab/project-aevon/internal/ingestion"
 	"github.com/aevon-lab/project-aevon/internal/migrations"
@@ -33,7 +32,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	// 1. Load Configuration
-	cfg, err := config.Load(*configPath)
+	cfg, err := corecfg.Load(*configPath)
 	if err != nil {
 		slog.Error("Failed to load config", "error", err)
 		os.Exit(1)
@@ -82,12 +81,6 @@ func main() {
 	validator := schema.NewValidator(formatRegistry)
 
 	// 4. Initialize Aggregation (Cron-based batch processing)
-	ruleRepo, err := coreagg.NewFileSystemRuleRepository(cfg.Aggregation.ConfigDir)
-	if err != nil {
-		slog.Error("Failed to load aggregation rules", "error", err)
-		os.Exit(1)
-	}
-
 	preAggStore := postgres.NewPreAggregateAdapter(dbAdapter.DB())
 
 	// MVP: aggregation runs on fixed 1-minute buckets.
@@ -96,7 +89,7 @@ func main() {
 			cronInterval,
 			dbAdapter, // EventStore
 			preAggStore,
-			ruleRepo.GetRules(),
+			cfg.RuleLoading.Rules,
 			aggregation.BatchJobOptions{
 				BatchSize:   cfg.Aggregation.BatchSize,
 				WorkerCount: cfg.Aggregation.WorkerCount,
@@ -118,7 +111,7 @@ func main() {
 	ingestionSvc := ingestion.NewService(registry, validator, dbAdapter, cfg.Server.MaxBodySizeMB)
 
 	// 6. Initialize Projection (query API)
-	projectionSvc := projection.NewService(preAggStore, dbAdapter, ruleRepo.GetRules())
+	projectionSvc := projection.NewService(preAggStore, dbAdapter, cfg.RuleLoading.Rules)
 
 	// 7. Initialize Server
 	srv := server.New(fmtAddr(cfg.Server.Host, cfg.Server.Port), dbAdapter.DB(), cfg.Server.Mode)

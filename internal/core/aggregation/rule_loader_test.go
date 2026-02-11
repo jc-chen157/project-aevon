@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	coreagg "github.com/aevon-lab/project-aevon/internal/core/aggregation"
 )
 
 // writeRule is a test helper that writes a single rule YAML file into dir.
@@ -32,7 +30,7 @@ operator: "sum"
 field: "latency"
 `)
 
-	repo, err := coreagg.NewFileSystemRuleRepository(dir)
+	repo, err := NewFileSystemRuleRepository(dir)
 	if err != nil {
 		t.Fatalf("NewFileSystemRuleRepository: %v", err)
 	}
@@ -73,7 +71,7 @@ operator: "max"
 field: "amount"
 `)
 
-	repo, err := coreagg.NewFileSystemRuleRepository(dir)
+	repo, err := NewFileSystemRuleRepository(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +111,7 @@ func TestFileSystemRuleRepository_Fingerprint_Changes(t *testing.T) {
 	content := "name: \"fp_rule\"\nsource_event: \"x\"\noperator: \"count\"\n"
 	writeRule(t, dir, "fp_rule.yaml", content)
 
-	repo1, err := coreagg.NewFileSystemRuleRepository(dir)
+	repo1, err := NewFileSystemRuleRepository(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +120,7 @@ func TestFileSystemRuleRepository_Fingerprint_Changes(t *testing.T) {
 	// Modify the file content
 	writeRule(t, dir, "fp_rule.yaml", content+"# comment\n")
 
-	repo2, err := coreagg.NewFileSystemRuleRepository(dir)
+	repo2, err := NewFileSystemRuleRepository(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +139,7 @@ source_event: "x"
 operator: "average"
 `)
 
-	_, err := coreagg.NewFileSystemRuleRepository(dir)
+	_, err := NewFileSystemRuleRepository(dir)
 	if err == nil {
 		t.Fatal("expected error for unsupported operator, got nil")
 	}
@@ -156,7 +154,7 @@ window_size: "5m"
 operator: "count"
 `)
 
-	_, err := coreagg.NewFileSystemRuleRepository(dir)
+	_, err := NewFileSystemRuleRepository(dir)
 	if err == nil {
 		t.Fatal("expected error for window_size customization, got nil")
 	}
@@ -164,7 +162,7 @@ operator: "count"
 
 func TestFileSystemRuleRepository_MissingDir(t *testing.T) {
 	// Non-existent directory is valid — zero rules.
-	repo, err := coreagg.NewFileSystemRuleRepository("/tmp/does-not-exist-aevon-test")
+	repo, err := NewFileSystemRuleRepository("/tmp/does-not-exist-aevon-test")
 	if err != nil {
 		t.Fatalf("unexpected error for missing dir: %v", err)
 	}
@@ -184,7 +182,7 @@ source_event: "x"
 operator: "count"
 `)
 
-	repo, err := coreagg.NewFileSystemRuleRepository(dir)
+	repo, err := NewFileSystemRuleRepository(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +206,7 @@ operator: "sum"
 field: "amount"
 `)
 
-	_, err := coreagg.NewFileSystemRuleRepository(dir)
+	_, err := NewFileSystemRuleRepository(dir)
 	if err == nil {
 		t.Fatal("expected error for duplicate rule name, got nil")
 	}
@@ -221,7 +219,7 @@ name: "no_source"
 operator: "count"
 `)
 
-	_, err := coreagg.NewFileSystemRuleRepository(dir)
+	_, err := NewFileSystemRuleRepository(dir)
 	if err == nil {
 		t.Fatal("expected error for missing source_event, got nil")
 	}
