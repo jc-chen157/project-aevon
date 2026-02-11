@@ -36,9 +36,8 @@ Aevon addresses this by making state derivation a first-class platform concern:
 What you can ship with today:
 
 - ingest events through `POST /v1/events`
-- query derived state through `GET /v1/state/{tenant_id}/{principal_id}`
+- query derived state through `GET /v1/state/{principal_id}`
 - power core product workflows like usage counters, quota checks, and limit-aware UX
-- keep tenant boundaries explicit via `tenant_id`
 - get deterministic, replayable state from append-only history
 
 Intentionally out of scope for core MVP:
@@ -55,7 +54,7 @@ Client -> POST /v1/events
           -> scheduler sweeps events every interval
           -> pre_aggregates + sweep_checkpoints
 
-Client -> GET /v1/state/{tenant_id}/{principal_id}
+Client -> GET /v1/state/{principal_id}
           -> pre-aggregates (durable)
           -> + raw tail since checkpoint
           -> merged response
@@ -136,7 +135,6 @@ curl -X POST http://localhost:8080/v1/events \
   -H "Content-Type: application/json" \
   -d '{
     "id": "evt-001",
-    "tenant_id": "default",
     "principal_id": "user_123",
     "type": "api.request",
     "schema_version": 0,
@@ -156,14 +154,13 @@ Expected response:
 ### 5. Query aggregate state
 
 ```bash
-curl "http://localhost:8080/v1/state/default/user_123?rule=count_api_requests&start=2026-02-11T10:00:00Z&end=2026-02-11T11:00:00Z&granularity=total"
+curl "http://localhost:8080/v1/state/user_123?rule=count_api_requests&start=2026-02-11T10:00:00Z&end=2026-02-11T11:00:00Z&granularity=total"
 ```
 
 Example response:
 
 ```json
 {
-  "tenant_id": "default",
   "principal_id": "user_123",
   "rule": "count_api_requests",
   "operator": "count",
@@ -192,7 +189,6 @@ Ingests one immutable event.
 Required fields:
 
 - `id` (string)
-- `tenant_id` (string, defaults to `default` if omitted)
 - `principal_id` (string)
 - `type` (string)
 - `occurred_at` (RFC3339 timestamp)
@@ -211,9 +207,9 @@ Responses:
 
 Backward-compatible alias: `POST /v1/ingest`
 
-### GET /v1/state/{tenant_id}/{principal_id}
+### GET /v1/state/{principal_id}
 
-Queries aggregated values for one tenant/principal pair.
+Queries aggregated values for principal.
 
 Query params:
 
@@ -227,7 +223,7 @@ Responses:
 - `200 OK` with aggregate values
 - `400 Bad Request` for invalid query or unknown rule
 
-Backward-compatible alias: `GET /v1/aggregates/{tenant_id}/{principal_id}`
+Backward-compatible alias: `GET /v1/aggregates/{principal_id}`
 
 ## Configuration
 

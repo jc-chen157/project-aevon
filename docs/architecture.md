@@ -33,8 +33,8 @@ Aevon provides a single, auditable state pipeline to address these.
 In scope:
 
 - ingest events: `POST /v1/events`
-- query derived state: `GET /v1/state/{tenant_id}/{principal_id}`
-- multi-tenant isolation by `tenant_id`
+- query derived state: `GET /v1/state/{principal_id}`
+- single-tenant deployment model with principal-scoped state
 - deterministic aggregation over append-only events
 
 Out of scope for core MVP:
@@ -66,7 +66,7 @@ flowchart LR
     A --> P[(pre_aggregates)]
     A --> S[(sweep_checkpoints)]
 
-    C -->|GET /v1/state/{tenant}/{principal}| R[Projection API]
+    C -->|GET /v1/state/{principal}| R[Projection API]
     P --> R
     S --> R
     E -->|raw tail after checkpoint| R
