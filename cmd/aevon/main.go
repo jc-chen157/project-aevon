@@ -17,6 +17,7 @@ import (
 	"github.com/aevon-lab/project-aevon/internal/migrations"
 	"github.com/aevon-lab/project-aevon/internal/projection"
 	"github.com/aevon-lab/project-aevon/internal/schema"
+	schemaapi "github.com/aevon-lab/project-aevon/internal/schema/api"
 	"github.com/aevon-lab/project-aevon/internal/schema/formats/protobuf"
 	"github.com/aevon-lab/project-aevon/internal/schema/formats/yaml"
 	schemaStorage "github.com/aevon-lab/project-aevon/internal/schema/storage"
@@ -117,11 +118,13 @@ func main() {
 
 	// 6. Initialize Projection (query API)
 	projectionSvc := projection.NewService(preAggStore, dbAdapter, cfg.RuleLoading.Rules)
+	schemaAPISvc := schemaapi.NewService(registry, validator)
 
 	// 7. Initialize Server
 	srv := server.New(fmtAddr(cfg.Server.Host, cfg.Server.Port), dbAdapter.DB(), cfg.Server.Mode)
 	ingestionSvc.RegisterRoutes(srv.Engine)
 	projectionSvc.RegisterRoutes(srv.Engine)
+	schemaAPISvc.RegisterRoutes(srv.Engine)
 
 	// 8. Start Services
 	ctx, cancel := context.WithCancel(context.Background())

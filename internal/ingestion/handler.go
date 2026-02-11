@@ -22,6 +22,9 @@ const (
 	msgInvalidJSON    = "Invalid JSON body"
 	msgPersistFailed  = "Failed to persist event"
 	msgDuplicateEvent = "Event already exists"
+
+	defaultRawQueryLimit = 1000
+	maxRawQueryLimit     = 5000
 )
 
 // ingestionError carries the structured HTTP error shape from a helper back to the orchestrator.
@@ -64,6 +67,77 @@ func (s *Service) IngestHandler(c *gin.Context) {
 
 	// Event persisted to DB. Cron batch job will pick it up on next cycle.
 	c.JSON(http.StatusAccepted, gin.H{"status": "accepted"})
+}
+
+// ListEventsHandler handles GET /v1/events/:principal_id for raw event range queries.
+// Query parameters: start, end, limit (optional).
+func (s *Service) ListEventsHandler(c *gin.Context) {
+	var uri struct {
+		PrincipalID string `uri:"principal_id" binding:"required"`
+	}
+	var query struct {
+		Start time.Time `form:"start" binding:"required" time_format:"2006-01-02T15:04:05Z07:00"`
+		End   time.Time `form:"end" binding:"required" time_format:"2006-01-02T15:04:05Z07:00"`
+		Limit int       `form:"limit"`
+	}
+
+	if err := c.ShouldBindUri(&uri); err != nil {
+		c.JSON(http.StatusBadRequest, httperr.ErrorResponse{
+			ErrorType: httperr.HttpInvalidJsonError,
+			Message:   "Invalid path parameters",
+			Details:   err.Error(),
+		})
+		return
+	}
+
+	if err := c.ShouldBindQuery(&query); err != nil {
+		c.JSON(http.StatusBadRequest, httperr.ErrorResponse{
+			ErrorType: httperr.HttpInvalidJsonError,
+			Message:   "Invalid query parameters",
+			Details:   err.Error(),
+		})
+		return
+	}
+
+	if !query.End.After(query.Start) {
+		c.JSON(http.StatusBadRequest, httperr.ErrorResponse{
+			ErrorType: httperr.HttpInvalidJsonError,
+			Message:   "Invalid query parameters",
+			Details:   "end time must be after start time",
+		})
+		return
+	}
+
+	limit := query.Limit
+	if limit == 0 {
+		limit = defaultRawQueryLimit
+	}
+	if limit < 0 || limit > maxRawQueryLimit {
+		c.JSON(http.StatusBadRequest, httperr.ErrorResponse{
+			ErrorType: httperr.HttpInvalidJsonError,
+			Message:   "Invalid query parameters",
+			Details:   "limit must be between 1 and 5000",
+		})
+		return
+	}
+
+	events, err := s.store.RetrieveEventsByPrincipalAndIngestedRange(
+		c.Request.Context(),
+		uri.PrincipalID,
+		query.Start,
+		query.End,
+		limit,
+	)
+	if err != nil {
+		slog.Error("Failed to query raw events", "error", err, "principal_id", uri.PrincipalID)
+		c.JSON(http.StatusInternalServerError, httperr.ErrorResponse{
+			ErrorType: httperr.HttpInternalError,
+			Message:   "Failed to query events",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, events)
 }
 
 // parseEvent reads the raw request body and binds it into an Event struct.

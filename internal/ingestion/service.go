@@ -38,6 +38,7 @@ func NewService(reg *schema.Registry, val *schema.Validator, repo storage.EventS
 func (s *Service) RegisterRoutes(r gin.IRouter) {
 	// Canonical ingestion endpoint.
 	r.POST("/v1/events", s.IngestHandler)
+	r.GET("/v1/events/:principal_id", s.ListEventsHandler)
 
 	// Backward-compatible alias. Can be removed after clients migrate.
 	r.POST("/v1/ingest", s.IngestHandler)

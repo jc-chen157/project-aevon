@@ -23,6 +23,9 @@ func NewService(reg *schema.Registry, val *schema.Validator) *Service {
 func (s *Service) RegisterRoutes(r gin.IRouter) {
 	handler := NewHandler(s.registry, s.validator)
 
+	// Canonical schema listing endpoint for MVP clients.
+	r.GET("/v1/schema", handler.HandleList)
+
 	schemas := r.Group("/v1/schemas")
 	{
 		schemas.GET("", handler.HandleList)

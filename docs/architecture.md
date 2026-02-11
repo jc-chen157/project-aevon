@@ -33,7 +33,9 @@ Aevon provides a single, auditable state pipeline to address these.
 In scope:
 
 - ingest events: `POST /v1/events`
+- query raw events by ingestion range: `GET /v1/events/{principal_id}`
 - query derived state: `GET /v1/state/{principal_id}`
+- list registered schemas: `GET /v1/schema`
 - single-tenant deployment model with principal-scoped state
 - deterministic aggregation over append-only events
 

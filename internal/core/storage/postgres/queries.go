@@ -43,6 +43,20 @@ const (
 		LIMIT $2
 	`
 
+	// queryRetrieveEventsByPrincipalIngestedRange fetches raw events for one principal
+	// in an ingested_at time range.
+	queryRetrieveEventsByPrincipalIngestedRange = `
+		SELECT
+			id, principal_id, type, schema_version,
+			occurred_at, ingested_at, metadata, data, ingest_seq
+		FROM events
+		WHERE principal_id = $1
+		  AND ingested_at >= $2
+		  AND ingested_at <= $3
+		ORDER BY ingested_at ASC, ingest_seq ASC
+		LIMIT $4
+	`
+
 	// queryRetrieveScopedEventsAfterCursor fetches unflushed events for one query scope.
 	// Used by projection hybrid read path to merge pre-aggregates with tail raw events.
 	queryRetrieveScopedEventsAfterCursor = `

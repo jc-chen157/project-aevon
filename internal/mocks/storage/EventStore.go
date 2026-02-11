@@ -85,6 +85,68 @@ func (_c *EventStore_RetrieveEventsAfter_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// RetrieveEventsByPrincipalAndIngestedRange provides a mock function with given fields: ctx, principalID, startIngestedAt, endIngestedAt, limit
+func (_m *EventStore) RetrieveEventsByPrincipalAndIngestedRange(ctx context.Context, principalID string, startIngestedAt time.Time, endIngestedAt time.Time, limit int) ([]*v1.Event, error) {
+	ret := _m.Called(ctx, principalID, startIngestedAt, endIngestedAt, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RetrieveEventsByPrincipalAndIngestedRange")
+	}
+
+	var r0 []*v1.Event
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, int) ([]*v1.Event, error)); ok {
+		return rf(ctx, principalID, startIngestedAt, endIngestedAt, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, time.Time, time.Time, int) []*v1.Event); ok {
+		r0 = rf(ctx, principalID, startIngestedAt, endIngestedAt, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*v1.Event)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, time.Time, time.Time, int) error); ok {
+		r1 = rf(ctx, principalID, startIngestedAt, endIngestedAt, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RetrieveEventsByPrincipalAndIngestedRange'
+type EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call struct {
+	*mock.Call
+}
+
+// RetrieveEventsByPrincipalAndIngestedRange is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principalID string
+//   - startIngestedAt time.Time
+//   - endIngestedAt time.Time
+//   - limit int
+func (_e *EventStore_Expecter) RetrieveEventsByPrincipalAndIngestedRange(ctx interface{}, principalID interface{}, startIngestedAt interface{}, endIngestedAt interface{}, limit interface{}) *EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call {
+	return &EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call{Call: _e.mock.On("RetrieveEventsByPrincipalAndIngestedRange", ctx, principalID, startIngestedAt, endIngestedAt, limit)}
+}
+
+func (_c *EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call) Run(run func(ctx context.Context, principalID string, startIngestedAt time.Time, endIngestedAt time.Time, limit int)) *EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(time.Time), args[3].(time.Time), args[4].(int))
+	})
+	return _c
+}
+
+func (_c *EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call) Return(_a0 []*v1.Event, _a1 error) *EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call) RunAndReturn(run func(context.Context, string, time.Time, time.Time, int) ([]*v1.Event, error)) *EventStore_RetrieveEventsByPrincipalAndIngestedRange_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RetrieveEventsAfterCursor provides a mock function with given fields: ctx, cursor, limit
 func (_m *EventStore) RetrieveEventsAfterCursor(ctx context.Context, cursor int64, limit int) ([]*v1.Event, error) {
 	ret := _m.Called(ctx, cursor, limit)

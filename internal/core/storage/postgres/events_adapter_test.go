@@ -174,6 +174,55 @@ func TestAdapter_RetrieveEventsAfterCursor(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAdapter_RetrieveEventsByPrincipalAndIngestedRange(t *testing.T) {
+	adapter, mock, db := newMockAdapter(t)
+	defer db.Close()
+
+	start := time.Date(2026, 2, 8, 10, 0, 0, 0, time.UTC)
+	end := start.Add(10 * time.Minute)
+
+	mock.ExpectQuery(regexp.QuoteMeta(queryRetrieveEventsByPrincipalIngestedRange)).
+		WithArgs("user-1", start, end, 100).
+		WillReturnRows(sqlmock.NewRows(eventRowColumns()).
+			AddRow(
+				"evt-1",
+				"user-1",
+				"api.request",
+				1,
+				start,
+				start.Add(time.Second),
+				[]byte(`{"source":"api"}`),
+				[]byte(`{"count":1}`),
+				int64(1),
+			).
+			AddRow(
+				"evt-2",
+				"user-1",
+				"api.request",
+				1,
+				start.Add(time.Minute),
+				start.Add(time.Minute).Add(time.Second),
+				[]byte(`{"source":"worker"}`),
+				[]byte(`{"count":2}`),
+				int64(2),
+			),
+		).RowsWillBeClosed()
+
+	events, err := adapter.RetrieveEventsByPrincipalAndIngestedRange(
+		context.Background(),
+		"user-1",
+		start,
+		end,
+		100,
+	)
+	require.NoError(t, err)
+	require.Len(t, events, 2)
+	require.Equal(t, "evt-1", events[0].ID)
+	require.Equal(t, "evt-2", events[1].ID)
+	require.Equal(t, float64(2), events[1].Data["count"])
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestAdapter_RetrieveScopedEventsAfterCursor(t *testing.T) {
 	adapter, mock, db := newMockAdapter(t)
 	defer db.Close()
@@ -229,6 +278,10 @@ func TestAdapter_CloseReturnsDBCloseError(t *testing.T) {
 	stmtRetrieve, err := db.Prepare(queryRetrieveEventsAfter)
 	require.NoError(t, err)
 
+	mock.ExpectPrepare(regexp.QuoteMeta(queryRetrieveEventsByPrincipalIngestedRange)).WillBeClosed()
+	stmtRetrieveByScope, err := db.Prepare(queryRetrieveEventsByPrincipalIngestedRange)
+	require.NoError(t, err)
+
 	mock.ExpectPrepare(regexp.QuoteMeta(queryRetrieveEventsAfterCursor)).WillBeClosed()
 	stmtRetrieveCursor, err := db.Prepare(queryRetrieveEventsAfterCursor)
 	require.NoError(t, err)
@@ -243,6 +296,7 @@ func TestAdapter_CloseReturnsDBCloseError(t *testing.T) {
 		db:                       db,
 		stmtSaveEvent:            stmtSave,
 		stmtRetrieveEvents:       stmtRetrieve,
+		stmtRetrieveByScope:      stmtRetrieveByScope,
 		stmtRetrieveEventsCursor: stmtRetrieveCursor,
 		stmtRetrieveScopedCursor: stmtRetrieveScopedCursor,
 	}
@@ -264,6 +318,7 @@ func newMockAdapter(t *testing.T) (*Adapter, sqlmock.Sqlmock, *sql.DB) {
 		db:                       db,
 		stmtSaveEvent:            mustPrepareStmt(t, db, mock, querySaveEvent),
 		stmtRetrieveEvents:       mustPrepareStmt(t, db, mock, queryRetrieveEventsAfter),
+		stmtRetrieveByScope:      mustPrepareStmt(t, db, mock, queryRetrieveEventsByPrincipalIngestedRange),
 		stmtRetrieveEventsCursor: mustPrepareStmt(t, db, mock, queryRetrieveEventsAfterCursor),
 		stmtRetrieveScopedCursor: mustPrepareStmt(t, db, mock, queryRetrieveScopedEventsAfterCursor),
 	}

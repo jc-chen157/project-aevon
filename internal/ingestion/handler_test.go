@@ -277,6 +277,105 @@ func TestIngestHandler_BodySizeLimit(t *testing.T) {
 	require.Contains(t, errResp.Message, "maximum allowed size")
 }
 
+func TestListEventsHandler_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	start := time.Date(2026, 2, 8, 10, 0, 0, 0, time.UTC)
+	end := start.Add(10 * time.Minute)
+
+	mockStore := storagemocks.NewEventStore(t)
+	mockStore.EXPECT().
+		RetrieveEventsByPrincipalAndIngestedRange(mock.Anything, "user-1", start, end, 1000).
+		Return([]*v1.Event{
+			{
+				ID:          "evt-1",
+				PrincipalID: "user-1",
+				Type:        "api.request",
+				OccurredAt:  start,
+				IngestedAt:  start.Add(time.Second),
+				Data:        map[string]interface{}{"count": float64(1)},
+			},
+		}, nil).
+		Once()
+
+	registry := internalschema.NewRegistry(nil)
+	validator := internalschema.NewValidator(internalschema.NewFormatRegistry())
+	svc := NewService(registry, validator, mockStore, 1)
+
+	r := gin.New()
+	svc.RegisterRoutes(r)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/events/user-1?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339),
+		nil,
+	)
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	var events []v1.Event
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &events))
+	require.Len(t, events, 1)
+	require.Equal(t, "evt-1", events[0].ID)
+	require.Equal(t, "user-1", events[0].PrincipalID)
+}
+
+func TestListEventsHandler_InvalidQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockStore := storagemocks.NewEventStore(t)
+	registry := internalschema.NewRegistry(nil)
+	validator := internalschema.NewValidator(internalschema.NewFormatRegistry())
+	svc := NewService(registry, validator, mockStore, 1)
+
+	r := gin.New()
+	svc.RegisterRoutes(r)
+
+	start := time.Date(2026, 2, 8, 10, 0, 0, 0, time.UTC)
+	end := start.Add(-1 * time.Minute)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/events/user-1?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339),
+		nil,
+	)
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+}
+
+func TestListEventsHandler_StoreError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	start := time.Date(2026, 2, 8, 10, 0, 0, 0, time.UTC)
+	end := start.Add(10 * time.Minute)
+
+	mockStore := storagemocks.NewEventStore(t)
+	mockStore.EXPECT().
+		RetrieveEventsByPrincipalAndIngestedRange(mock.Anything, "user-1", start, end, 100).
+		Return(nil, errors.New("db failure")).
+		Once()
+
+	registry := internalschema.NewRegistry(nil)
+	validator := internalschema.NewValidator(internalschema.NewFormatRegistry())
+	svc := NewService(registry, validator, mockStore, 1)
+
+	r := gin.New()
+	svc.RegisterRoutes(r)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/events/user-1?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339)+"&limit=100",
+		nil,
+	)
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusInternalServerError, resp.Code)
+}
+
 // mockSchemaRepo is a simple in-memory schema repository for testing
 type mockSchemaRepo struct {
 	schema *internalschema.Schema

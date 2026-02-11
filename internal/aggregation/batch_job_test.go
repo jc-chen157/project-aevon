@@ -26,6 +26,16 @@ func (m *mockEventStore) RetrieveEventsAfter(ctx context.Context, afterTime time
 	return nil, nil // Not used in batch job
 }
 
+func (m *mockEventStore) RetrieveEventsByPrincipalAndIngestedRange(
+	ctx context.Context,
+	principalID string,
+	startIngestedAt time.Time,
+	endIngestedAt time.Time,
+	limit int,
+) ([]*v1.Event, error) {
+	return nil, nil
+}
+
 func (m *mockEventStore) RetrieveEventsAfterCursor(ctx context.Context, cursor int64, limit int) ([]*v1.Event, error) {
 	var result []*v1.Event
 	for _, evt := range m.events {

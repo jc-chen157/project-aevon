@@ -19,6 +19,16 @@ type EventStore interface {
 	// Kept for backwards compatibility during migration.
 	RetrieveEventsAfter(ctx context.Context, afterTime time.Time, limit int) ([]*v1.Event, error)
 
+	// RetrieveEventsByPrincipalAndIngestedRange fetches raw events for one principal
+	// constrained by ingested_at time range.
+	RetrieveEventsByPrincipalAndIngestedRange(
+		ctx context.Context,
+		principalID string,
+		startIngestedAt time.Time,
+		endIngestedAt time.Time,
+		limit int,
+	) ([]*v1.Event, error)
+
 	// RetrieveEventsAfterCursor fetches events after a cursor (ingest_seq) in strict total order.
 	// This prevents batch boundary data loss during recovery pagination.
 	// cursor=0 means "from the beginning"

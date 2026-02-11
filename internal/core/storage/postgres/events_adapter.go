@@ -19,6 +19,7 @@ type Adapter struct {
 	db                       *sql.DB
 	stmtSaveEvent            *sql.Stmt
 	stmtRetrieveEvents       *sql.Stmt
+	stmtRetrieveByScope      *sql.Stmt
 	stmtRetrieveEventsCursor *sql.Stmt
 	stmtRetrieveScopedCursor *sql.Stmt
 }
@@ -74,10 +75,19 @@ func NewAdapter(dsn string, maxOpenConns, maxIdleConns int) (*Adapter, error) {
 		return nil, fmt.Errorf("failed to prepare retrieveEventsAfter statement: %w", err)
 	}
 
+	stmtRetrieveByScope, err := db.Prepare(queryRetrieveEventsByPrincipalIngestedRange)
+	if err != nil {
+		stmtSave.Close()
+		stmtRetrieve.Close()
+		db.Close()
+		return nil, fmt.Errorf("failed to prepare retrieveEventsByPrincipalIngestedRange statement: %w", err)
+	}
+
 	stmtRetrieveCursor, err := db.Prepare(queryRetrieveEventsAfterCursor)
 	if err != nil {
 		stmtSave.Close()
 		stmtRetrieve.Close()
+		stmtRetrieveByScope.Close()
 		db.Close()
 		return nil, fmt.Errorf("failed to prepare retrieveEventsAfterCursor statement: %w", err)
 	}
@@ -86,6 +96,7 @@ func NewAdapter(dsn string, maxOpenConns, maxIdleConns int) (*Adapter, error) {
 	if err != nil {
 		stmtSave.Close()
 		stmtRetrieve.Close()
+		stmtRetrieveByScope.Close()
 		stmtRetrieveCursor.Close()
 		db.Close()
 		return nil, fmt.Errorf("failed to prepare retrieveScopedEventsAfterCursor statement: %w", err)
@@ -97,6 +108,7 @@ func NewAdapter(dsn string, maxOpenConns, maxIdleConns int) (*Adapter, error) {
 		db:                       db,
 		stmtSaveEvent:            stmtSave,
 		stmtRetrieveEvents:       stmtRetrieve,
+		stmtRetrieveByScope:      stmtRetrieveByScope,
 		stmtRetrieveEventsCursor: stmtRetrieveCursor,
 		stmtRetrieveScopedCursor: stmtRetrieveScopedCursor,
 	}, nil
@@ -196,6 +208,37 @@ func (a *Adapter) RetrieveEventsAfter(ctx context.Context, afterTime time.Time, 
 	return events, nil
 }
 
+// RetrieveEventsByPrincipalAndIngestedRange fetches raw events for one principal
+// in an ingested_at time range [start, end].
+func (a *Adapter) RetrieveEventsByPrincipalAndIngestedRange(
+	ctx context.Context,
+	principalID string,
+	startIngestedAt time.Time,
+	endIngestedAt time.Time,
+	limit int,
+) ([]*v1.Event, error) {
+	rows, err := a.stmtRetrieveByScope.QueryContext(ctx, principalID, startIngestedAt, endIngestedAt, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query scoped events by ingested range: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*v1.Event
+	for rows.Next() {
+		event, scanErr := scanEventRow(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		events = append(events, event)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating scoped events by ingested range: %w", err)
+	}
+
+	return events, nil
+}
+
 // RetrieveEventsAfterCursor fetches events after a cursor (ingest_seq) in strict total order.
 // Returns events ordered by ingest_seq ASC.
 // Used by recovery to replay events without batch boundary data loss.
@@ -286,6 +329,10 @@ func (a *Adapter) Close() error {
 
 	if err := a.stmtRetrieveEvents.Close(); err != nil && firstErr == nil {
 		firstErr = fmt.Errorf("failed to close retrieveEvents statement: %w", err)
+	}
+
+	if err := a.stmtRetrieveByScope.Close(); err != nil && firstErr == nil {
+		firstErr = fmt.Errorf("failed to close retrieveByScope statement: %w", err)
 	}
 
 	if err := a.stmtRetrieveEventsCursor.Close(); err != nil && firstErr == nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/aevon-lab/project-aevon/internal/schema"
 	"github.com/gin-gonic/gin"
+	"gopkg.in/yaml.v3"
 )
 
 // Handler handles schema management HTTP requests.
@@ -42,6 +43,18 @@ type SchemaResponse struct {
 	StrictMode  bool   `json:"strict_mode"`
 	Fingerprint string `json:"fingerprint"`
 	CreatedAt   string `json:"created_at"`
+}
+
+// ListedSchemaResponse is the list payload for schema discovery endpoints.
+// For YAML schemas, Definition contains parsed JSON-compatible data.
+type ListedSchemaResponse struct {
+	TenantID   string      `json:"tenant_id"`
+	Type       string      `json:"type"`
+	Version    int         `json:"version"`
+	Format     string      `json:"format"`
+	StrictMode bool        `json:"strict_mode"`
+	State      string      `json:"state"`
+	Definition interface{} `json:"definition"`
 }
 
 // ErrorResponse is the error response body.
@@ -94,12 +107,18 @@ func (h *Handler) HandleList(c *gin.Context) {
 		return
 	}
 
-	responses := make([]*SchemaResponse, len(schemas))
+	responses := make([]*ListedSchemaResponse, len(schemas))
 	for i, s := range schemas {
-		responses[i] = h.toResponse(s)
+		resp, convErr := h.toListedResponse(s)
+		if convErr != nil {
+			slog.Error("Schema list conversion error", "error", convErr, "type", s.Type, "version", s.Version)
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal_error", Message: "Failed to convert schema definition"})
+			return
+		}
+		responses[i] = resp
 	}
 
-	c.JSON(http.StatusOK, gin.H{"schemas": responses})
+	c.JSON(http.StatusOK, responses)
 }
 
 // HandleValidate handles POST /v1/schemas/{type}/{version}/validate (dry-run).
@@ -154,4 +173,29 @@ func (h *Handler) toResponse(s *schema.Schema) *SchemaResponse {
 		Fingerprint: s.Fingerprint,
 		CreatedAt:   s.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
+}
+
+func (h *Handler) toListedResponse(s *schema.Schema) (*ListedSchemaResponse, error) {
+	resp := &ListedSchemaResponse{
+		TenantID:   s.TenantID,
+		Type:       s.Type,
+		Version:    s.Version,
+		Format:     string(s.Format),
+		StrictMode: s.StrictMode,
+		State:      string(s.State),
+	}
+
+	if s.Format == schema.FormatYaml {
+		var parsed map[string]interface{}
+		if err := yaml.Unmarshal(s.Definition, &parsed); err != nil {
+			return nil, err
+		}
+		resp.Definition = parsed
+		return resp, nil
+	}
+
+	resp.Definition = map[string]interface{}{
+		"raw": string(s.Definition),
+	}
+	return resp, nil
 }
