@@ -3,6 +3,8 @@ package aggregation
 import (
 	"testing"
 	"time"
+
+	coreagg "github.com/aevon-lab/project-aevon/internal/core/aggregation"
 )
 
 func TestParseWindowSize(t *testing.T) {
@@ -28,7 +30,7 @@ func TestParseWindowSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			ws, err := ParseWindowSize(tt.input)
+			ws, err := coreagg.ParseWindowSize(tt.input)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -60,7 +62,7 @@ func TestBucketFor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := BucketFor(base, tt.granularity)
+			got := coreagg.BucketFor(base, tt.granularity)
 			if !got.Equal(tt.want) {
 				t.Errorf("BucketFor(%v, %v) = %v, want %v", base, tt.granularity, got, tt.want)
 			}

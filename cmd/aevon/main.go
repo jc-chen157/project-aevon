@@ -12,6 +12,7 @@ import (
 
 	"github.com/aevon-lab/project-aevon/internal/aggregation"
 	"github.com/aevon-lab/project-aevon/internal/config"
+	coreagg "github.com/aevon-lab/project-aevon/internal/core/aggregation"
 	"github.com/aevon-lab/project-aevon/internal/core/storage/postgres"
 	"github.com/aevon-lab/project-aevon/internal/ingestion"
 	"github.com/aevon-lab/project-aevon/internal/migrations"
@@ -81,7 +82,7 @@ func main() {
 	validator := schema.NewValidator(formatRegistry)
 
 	// 4. Initialize Aggregation (Cron-based batch processing)
-	ruleRepo, err := aggregation.NewFileSystemRuleRepository(cfg.Aggregation.ConfigDir)
+	ruleRepo, err := coreagg.NewFileSystemRuleRepository(cfg.Aggregation.ConfigDir)
 	if err != nil {
 		slog.Error("Failed to load aggregation rules", "error", err)
 		os.Exit(1)

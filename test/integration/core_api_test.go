@@ -19,6 +19,7 @@ import (
 
 	"github.com/aevon-lab/project-aevon/internal/aggregation"
 	v1 "github.com/aevon-lab/project-aevon/internal/api/v1"
+	coreagg "github.com/aevon-lab/project-aevon/internal/core/aggregation"
 	"github.com/aevon-lab/project-aevon/internal/core/storage/postgres"
 	"github.com/aevon-lab/project-aevon/internal/ingestion"
 	"github.com/aevon-lab/project-aevon/internal/projection"
@@ -151,7 +152,7 @@ func startHarness(t *testing.T) *integrationHarness {
 	formatRegistry.RegisterFormat(schema.FormatYaml, yaml.NewCompiler(), yaml.NewValidator())
 	validator := schema.NewValidator(formatRegistry)
 
-	ruleRepo, err := aggregation.NewFileSystemRuleRepository(filepath.Join(root, "config", "aggregations"))
+	ruleRepo, err := coreagg.NewFileSystemRuleRepository(filepath.Join(root, "config", "aggregations"))
 	require.NoError(t, err)
 
 	preAggStore := postgres.NewPreAggregateAdapter(adapter.DB())
